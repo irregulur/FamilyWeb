@@ -89,7 +89,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/irregulur/FamilyWeb/mast
 The first time it creates a container called `familyweb` (Debian, up to 4 cores, 2 GB memory, starts at boot) and asks:
 
 - the family name for the title,
-- how much disk space to give it (default 200 GB; 18 tapes after shrinking are about 35 GB; space is only used as it fills up),
+- how much disk space to give it (it suggests 70% of what is really free, max 200 GB; 18 tapes after shrinking are about 35 GB),
 - whether to keep the photos inside the container (default, included in Proxmox backups) or in a folder the Proxmox server already has, such as a NAS share at `/mnt/pve/nas/familyweb`.
 
 At the end it prints the address, e.g. `http://192.168.1.60`. Open it, create your account (you become the owner), and invite the family from the Family page.

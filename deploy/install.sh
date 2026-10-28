@@ -11,6 +11,7 @@ DATA=${DATA_DIR:-/var/lib/familyweb}
 ENV_FILE=/etc/familyweb.env
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 export DEBIAN_FRONTEND=noninteractive
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 # Debian containers only have this one; avoids pages of locale warnings
 say() { printf '\033[1;33m→ %s\033[0m\n' "$*"; }
 
 [ "$(id -u)" = 0 ] || { echo "Please run as root."; exit 1; }
