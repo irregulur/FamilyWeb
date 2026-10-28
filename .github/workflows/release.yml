@@ -1,0 +1,32 @@
+# Every push builds the site and publishes it as a GitHub release. The Proxmox helper script and the
+# `update` command inside the container download the newest one, so updating is: push, then `update`.
+name: Release
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: |
+          echo "${{ github.run_number }}" > VERSION
+          tar czf familyweb-release.tgz build server.js package.json VERSION deploy/install.sh
+      - run: gh release create "v$N" familyweb-release.tgz --title "Version $N" --notes "$MESSAGE"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ github.run_number }}
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual release' }}

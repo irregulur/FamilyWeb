@@ -2,9 +2,11 @@
 # Installs or updates the site on a Debian 12/13 machine (the Proxmox container, a VM, a Pi…).
 # Run as root from an unpacked release: bash deploy/install.sh
 # Safe to run again: it only replaces the program, never the photos or the database.
+# It also adds an `update` command that installs the newest release from GitHub.
 set -euo pipefail
 
 APP=/opt/familyweb
+REPO=${FAMILYWEB_REPO:-irregulur/FamilyWeb}
 DATA=${DATA_DIR:-/var/lib/familyweb}
 ENV_FILE=/etc/familyweb.env
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -75,9 +77,30 @@ say "Installing the site to $APP"
 rm -rf "$APP.new"
 mkdir -p "$APP.new"
 cp -r "$HERE/build" "$HERE/server.js" "$HERE/package.json" "$APP.new/"
+[ -f "$HERE/VERSION" ] && cp "$HERE/VERSION" "$APP.new/"
 rm -rf "$APP.old"
 [ -d "$APP" ] && mv "$APP" "$APP.old"
 mv "$APP.new" "$APP"
+
+# The `update` command: downloads the newest release and runs this script from it
+cat >/usr/local/bin/update <<'UPDATE'
+#!/usr/bin/env bash
+# Updates the family archive to the newest version on GitHub. Photos, videos and accounts are kept.
+# `update --force` reinstalls even if it's already the newest.
+set -euo pipefail
+REPO=$(cat /opt/familyweb/REPO 2>/dev/null || echo irregulur/FamilyWeb)
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+echo "Downloading the newest version…"
+curl -fsSL "https://github.com/$REPO/releases/latest/download/familyweb-release.tgz" | tar xz -C "$TMP"
+if [ "$(cat "$TMP/VERSION")" = "$(cat /opt/familyweb/VERSION 2>/dev/null)" ] && [ "${1:-}" != --force ]; then
+	echo "Already up to date (version $(cat /opt/familyweb/VERSION))."
+	exit 0
+fi
+FAMILYWEB_REPO=$REPO bash "$TMP/deploy/install.sh"
+UPDATE
+chmod +x /usr/local/bin/update
+echo "$REPO" >"$APP/REPO"
 
 cat >/etc/systemd/system/familyweb.service <<EOF
 [Unit]
@@ -108,7 +131,7 @@ port=$(sed -n 's/^PORT=//p' "$ENV_FILE")
 for _ in $(seq 30); do
 	if curl -fs -o /dev/null "http://127.0.0.1:${port:-80}/login"; then
 		rm -rf "$APP.old"
-		say "Running ✓"
+		say "Running ✓ (version $(cat "$APP/VERSION" 2>/dev/null || echo dev))"
 		exit 0
 	fi
 	sleep 1

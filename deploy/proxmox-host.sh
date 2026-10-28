@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Runs ON the Proxmox server (deploy/proxmox.sh copies it there with the release).
+# Proxmox helper script. In the Proxmox web page: your server → Shell, then paste:
+#
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/irregulur/FamilyWeb/master/deploy/proxmox-host.sh)"
+#
 # First time: creates a small Debian container called "familyweb" and installs the site in it.
-# After that: just updates the site inside the existing container. Photos are never touched.
+# After that: updates the site inside the existing container. Photos are never touched.
 set -euo pipefail
 
 NAME=familyweb
-RELEASE=/tmp/familyweb-release.tgz
+REPO=${FAMILYWEB_REPO:-irregulur/FamilyWeb}
 say() { printf '\n\033[1;33m→ %s\033[0m\n' "$*"; }
 ask() { local answer; read -rp "$1 " answer </dev/tty; echo "${answer:-$2}"; }
 
@@ -18,8 +21,8 @@ if [ -z "$CTID" ]; then
 	FIRST=1
 	say "First install — a few questions (press Enter to accept the [default])"
 	FAMILY=$(ask 'Family name, for the title "The ___ Archive" [Our Family]:' 'Our Family')
-	DISK=$(ask 'Space for photos and videos, in GB [64]:' 64)
-	[[ $DISK =~ ^[0-9]+$ ]] || DISK=64
+	DISK=$(ask 'Space for photos and videos, in GB (18 tapes are ~35 GB after shrinking) [200]:' 200)
+	[[ $DISK =~ ^[0-9]+$ ]] || DISK=200
 	echo
 	echo "Photos are kept inside the container by default (included in Proxmox backups)."
 	echo "Or keep them in a folder this Proxmox server can already see, e.g. your NAS mounted at /mnt/pve/nas."
@@ -39,10 +42,11 @@ if [ -z "$CTID" ]; then
 	fi
 
 	CTID=$(pvesh get /cluster/nextid)
-	say "Creating container $CTID ($NAME): Debian, 2 cores, 2 GB memory, ${DISK} GB disk on $DISK_STORE"
+	CORES=$(( $(nproc) < 4 ? $(nproc) : 4 )) # more cores = tapes shrink faster; costs nothing when idle
+	say "Creating container $CTID ($NAME): Debian, $CORES cores, 2 GB memory, ${DISK} GB disk on $DISK_STORE"
 	pct create "$CTID" "$TEMPLATE_STORE:vztmpl/$TEMPLATE" \
 		--hostname "$NAME" --description "Family photo and video archive" \
-		--cores 2 --memory 2048 --swap 512 \
+		--cores "$CORES" --memory 2048 --swap 512 \
 		--rootfs "$DISK_STORE:$DISK" \
 		--net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" \
 		--unprivileged 1 --features nesting=1 --onboot 1
@@ -68,17 +72,22 @@ for i in $(seq 60); do
 	sleep 1
 done
 
-say "Installing the site inside container $CTID"
-pct push "$CTID" "$RELEASE" /root/familyweb-release.tgz
-pct exec "$CTID" -- env FAMILY_NAME="${FAMILY:-Our Family}" bash -c '
-	set -e
-	rm -rf /root/familyweb-release && mkdir /root/familyweb-release
-	tar xzf /root/familyweb-release.tgz -C /root/familyweb-release
-	bash /root/familyweb-release/deploy/install.sh
-	rm -rf /root/familyweb-release /root/familyweb-release.tgz'
-rm -f "$RELEASE"
+if pct exec "$CTID" -- test -x /usr/local/bin/update; then
+	say "Updating the site inside container $CTID"
+	pct exec "$CTID" -- update
+else
+	say "Installing the site inside container $CTID"
+	pct exec "$CTID" -- env FAMILY_NAME="${FAMILY:-Our Family}" FAMILYWEB_REPO="$REPO" bash -c '
+		set -e
+		command -v curl >/dev/null || { apt-get update -qq && apt-get install -y -qq curl ca-certificates >/dev/null; }
+		rm -rf /root/familyweb-release && mkdir /root/familyweb-release
+		curl -fsSL "https://github.com/$FAMILYWEB_REPO/releases/latest/download/familyweb-release.tgz" | tar xz -C /root/familyweb-release
+		bash /root/familyweb-release/deploy/install.sh
+		rm -rf /root/familyweb-release'
+fi
 
 IP=$(pct exec "$CTID" -- hostname -I | awk '{ print $1 }')
 say "Done! Open http://$IP in a browser."
 [ -n "$FIRST" ] && echo "  First visit: create your own account (you become the owner), then invite the family from the Family page."
 echo "  Container: $CTID ($NAME). Settings: /etc/familyweb.env inside it."
+echo "  To update later: paste the same line again, or type 'update' in the container's Console."

@@ -22,8 +22,7 @@ A private, family-only website for our old photos and home videos. Runs in its o
 ```
 FamilyWeb/
 ├── deploy/
-│   ├── proxmox.sh               `pnpm proxmox <ip>`: build, copy to Proxmox, install/update
-│   ├── proxmox-host.sh          runs on Proxmox: creates the container the first time
+│   ├── proxmox-host.sh          Proxmox helper script: creates the container, installs/updates
 │   └── install.sh               runs in the container: Node.js, ffmpeg, systemd service
 ├── design/mockups/              the design mock-ups (open in a browser), for trying ideas before building them
 ├── server.js                    starts the built site (works over http at home and https via a tunnel)
@@ -79,21 +78,23 @@ DATA_DIR=./data FAMILY_NAME=Smith pnpm dev     # http://localhost:5173 (no uploa
 
 ## Put it on the Proxmox server
 
-From this folder, on your computer:
+The code lives on GitHub (`irregulur/FamilyWeb`, public — code only, never photos). Every push builds a release automatically (`.github/workflows/release.yml`).
+
+In the Proxmox web page: click your server → **Shell**, and paste:
 
 ```bash
-pnpm proxmox 192.168.1.10      # the address of your Proxmox web page, without :8006
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/irregulur/FamilyWeb/master/deploy/proxmox-host.sh)"
 ```
 
-It asks for the Proxmox root password once. The first time it creates a container called `familyweb` (Debian, 2 cores, 2 GB memory, starts at boot) and asks:
+The first time it creates a container called `familyweb` (Debian, up to 4 cores, 2 GB memory, starts at boot) and asks:
 
 - the family name for the title,
-- how much disk space to give it (default 64 GB; 18 tapes after shrinking are about 25 GB),
+- how much disk space to give it (default 200 GB; 18 tapes after shrinking are about 35 GB; space is only used as it fills up),
 - whether to keep the photos inside the container (default, included in Proxmox backups) or in a folder the Proxmox server already has, such as a NAS share at `/mnt/pve/nas/familyweb`.
 
 At the end it prints the address, e.g. `http://192.168.1.60`. Open it, create your account (you become the owner), and invite the family from the Family page.
 
-**Updating**: change the code, run the same command again. Only the program is replaced; photos, videos and accounts stay. If the new version doesn't start, it goes back to the old one.
+**Updating**: push the changes to GitHub, wait for the release to finish (GitHub → Actions), then either paste the same line in the Proxmox Shell again, or type `update` in the container's Console. Only the program is replaced; photos, videos and accounts stay. A copy of the database is saved in `backups/` first (last 10 kept), and if the new version doesn't start it goes back to the old one.
 
 **Settings** live in `/etc/familyweb.env` inside the container (Proxmox → the container → Console): `nano /etc/familyweb.env`, then `systemctl restart familyweb`. Logs: `journalctl -u familyweb`.
 
