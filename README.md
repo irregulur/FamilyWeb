@@ -86,11 +86,7 @@ In the Proxmox web page: click your server → **Shell**, and paste:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/irregulur/FamilyWeb/master/deploy/proxmox-host.sh)"
 ```
 
-The first time it creates a container called `familyweb` (Debian, up to 4 cores, 2 GB memory, starts at boot) and asks:
-
-- the family name for the title,
-- how much disk space to give it (it suggests 70% of what is really free, max 200 GB; 18 tapes after shrinking are about 35 GB),
-- whether to keep the photos inside the container (default, included in Proxmox backups) or in a folder the Proxmox server already has, such as a NAS share at `/mnt/pve/nas/familyweb`.
+The first time, menus (like the community helper scripts) ask for the family name, which storage the container goes on (e.g. `local-lvm`), where the photos and videos go (your NAS shares from Datacenter → Storage are listed, or type a folder, or keep them inside the container) and the network bridge. The container is Debian, up to 4 cores, 2 GB memory, starts at boot. With a NAS folder the container itself is only 16 GB; the script checks the site can write to that folder (it runs as user 101990 on the Proxmox host).
 
 At the end it prints the address, e.g. `http://192.168.1.60`. Open it, create your account (you become the owner), and invite the family from the Family page.
 
