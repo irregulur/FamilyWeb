@@ -161,7 +161,7 @@
 	const LABEL: Record<Item['state'], string> = {
 		waiting: 'Ready to upload',
 		uploading: 'Uploading…',
-		processing: 'Preparing…',
+		processing: 'Uploaded ✓ · finishing on the server, safe to close',
 		ready: 'Added ✓',
 		failed: 'Failed'
 	};
