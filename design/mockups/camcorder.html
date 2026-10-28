@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mock-up 1 — Home video (90s, elegant)</title>
+<script src="shared.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+	/* ── Mock-up 1, round 2: "Home video", grown up ──────────────────────────
+	   Quiet and warm: an elegant serif, ivory or late-night dark, a 90s
+	   palette (hunter green, burgundy, gold), and the camcorder details kept
+	   small — the orange date stamp, timecodes, "PLAY ▶". */
+	:root {
+		--bg: #f5f1ea;
+		--surface: #fffdf8;
+		--surface-2: #ece6db;
+		--ink: #1f1b17;
+		--muted: #71695f;
+		--line: #e2dacd;
+		--accent: #7a1f2b;      /* burgundy */
+		--accent-ink: #fffdf8;
+		--gold: #a87c34;
+		--green: #2f5d62;
+		--osd: #ff9f1c;
+		--shadow: 0 1px 2px rgb(40 25 10 / 0.05), 0 18px 40px -24px rgb(40 25 10 / 0.35);
+		color-scheme: light;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme='light']) { --bg:#131115; --surface:#1b191d; --surface-2:#252227; --ink:#f2ece2; --muted:#a69e93; --line:#2e2b30; --accent:#d4ab62; --accent-ink:#1a1612; --gold:#d4ab62; --green:#7fb0a8; --shadow:0 18px 40px -20px rgb(0 0 0 / .9); color-scheme: dark; }
+	}
+	:root[data-theme='dark'] { --bg:#131115; --surface:#1b191d; --surface-2:#252227; --ink:#f2ece2; --muted:#a69e93; --line:#2e2b30; --accent:#d4ab62; --accent-ink:#1a1612; --gold:#d4ab62; --green:#7fb0a8; --shadow:0 18px 40px -20px rgb(0 0 0 / .9); color-scheme: dark; }
+
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
+	a { color: inherit; text-decoration: none; }
+	.wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+	.serif { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; }
+	.mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
+	.muted { color: var(--muted); }
+	h1, h2, h3 { margin: 0; font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+
+	/* header */
+	header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+	.bar { display: flex; align-items: center; gap: 36px; height: 68px; }
+	.logo { display: flex; align-items: baseline; gap: 10px; font: 26px/1 'Instrument Serif'; }
+	.logo .rec { width: 7px; height: 7px; border-radius: 50%; background: #d23a2a; align-self: center; }
+	nav { display: flex; gap: 26px; font-size: 14px; }
+	nav a { color: var(--muted); padding: 4px 0; border-bottom: 1px solid transparent; }
+	nav a.on, nav a:hover { color: var(--ink); border-color: var(--ink); }
+	.spacer { flex: 1; }
+	.icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 15px; cursor: pointer; }
+	.btn { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 22px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font: 500 14px Inter; border: 0; cursor: pointer; transition: filter 0.2s; }
+	.btn:hover { filter: brightness(1.1); }
+	.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+	.btn.ghost:hover { border-color: var(--ink); }
+
+	/* hero: a softly glowing viewfinder */
+	.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: center; padding: 64px 0 72px; }
+	.vf { position: relative; display: block; aspect-ratio: 4/3; border-radius: 6px; overflow: hidden; background: #000; box-shadow: var(--shadow); }
+	.vf img { width: 100%; height: 100%; object-fit: cover; filter: sepia(0.18) saturate(0.85) contrast(1.04) brightness(0.95); }
+	.vf::before { content: ''; position: absolute; inset: 0; z-index: 1; background: radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.45)); }
+	.vf::after { content: ''; position: absolute; inset: 0; z-index: 1; background: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.04) 0 1px, transparent 1px 3px); }
+	.vf .t { position: absolute; z-index: 2; color: rgb(255 255 255 / 0.92); font: 500 15px 'IBM Plex Mono'; letter-spacing: 0.08em; text-shadow: 0 0 6px rgb(0 0 0 / 0.6); }
+	.vf .tl { top: 22px; left: 26px; } .vf .tr { top: 22px; right: 26px; }
+	.vf .bl { bottom: 20px; left: 26px; color: var(--osd); text-shadow: 0 0 8px rgb(255 140 0 / 0.55), 1px 1px 0 rgb(0 0 0 / 0.6); }
+	.vf .br { bottom: 20px; right: 26px; }
+	.vf .now { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; padding: 60px 26px 50px; background: linear-gradient(transparent, rgb(0 0 0 / 0.55)); color: #fff; font: italic 22px 'Instrument Serif'; opacity: 0; transition: opacity 0.3s; }
+	.vf:hover .now { opacity: 1; }
+	.eyebrow { color: var(--gold); }
+	.hero h1 { font-size: clamp(52px, 6.4vw, 88px); line-height: 0.95; margin: 18px 0 20px; }
+	.hero h1 em { color: var(--muted); }
+	.hero p { font-size: 18px; color: var(--muted); max-width: 30em; margin: 0 0 32px; }
+	.stats { display: flex; gap: 40px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
+	.stats b { display: block; font: 34px/1.1 'Instrument Serif'; }
+	.stats span { color: var(--muted); }
+
+	/* section titles, like a VCR channel display */
+	.sec { margin: 88px 0 28px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+	.sec .mono { color: var(--gold); display: block; margin-bottom: 6px; }
+	.sec h2 { font-size: 44px; line-height: 1; }
+	.sec > a { color: var(--muted); font-size: 14px; } .sec > a:hover { color: var(--ink); }
+
+	.decades { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 99px; }
+	.decades a { padding: 6px 16px; border-radius: 99px; color: var(--muted); font-family: 'IBM Plex Mono'; font-size: 13px; }
+	.decades a.on { background: var(--ink); color: var(--bg); } .decades a:hover:not(.on) { color: var(--ink); }
+
+	/* timeline */
+	.year { display: grid; grid-template-columns: 180px 1fr; gap: 28px; padding: 28px 0; border-top: 1px solid var(--line); }
+	.year h3 { font-size: 58px; line-height: 0.9; }
+	.year .meta { margin-top: 10px; font-size: 14px; color: var(--muted); line-height: 1.7; }
+	.year .ontape { color: var(--green); }
+	.strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+	.thumb { position: relative; display: block; aspect-ratio: 4/3; border-radius: 3px; overflow: hidden; background: var(--surface-2); }
+	.thumb img { width: 100%; height: 100%; object-fit: cover; filter: sepia(0.15) saturate(0.88); transition: transform 0.6s cubic-bezier(.2,.7,.2,1), filter 0.6s; }
+	.thumb:hover img { transform: scale(1.04); filter: none; }
+	/* the 90s film-camera date stamp: '94 12 25 */
+	.stamp { position: absolute; right: 7px; bottom: 4px; color: var(--osd); font: 500 12px 'IBM Plex Mono'; white-space: pre; text-shadow: 0 0 6px rgb(255 140 0 / 0.6), 1px 1px 0 rgb(0 0 0 / 0.5); }
+	.strip .stamp { opacity: 0; transition: opacity 0.3s; } .thumb:hover .stamp { opacity: 1; }
+	.thumb .v { position: absolute; left: 7px; top: 6px; color: #fff; font: 500 11px 'IBM Plex Mono'; letter-spacing: 0.06em; text-shadow: 0 0 4px #000; }
+	.thumb.more { display: grid; place-items: center; text-align: center; color: var(--muted); border: 1px solid var(--line); background: transparent; font: italic 20px/1.2 'Instrument Serif'; }
+	.thumb.more:hover { color: var(--ink); border-color: var(--ink); }
+
+	/* tapes */
+	.tapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+	.tape { display: block; }
+	.cass { position: relative; aspect-ratio: 19/12.5; border-radius: 8px; background: linear-gradient(160deg, #34312f, #1a1817); padding: 9% 8% 0; box-shadow: var(--shadow), inset 0 1px 0 rgb(255 255 255 / 0.08); transition: transform 0.4s cubic-bezier(.2,.7,.2,1); }
+	.tape:hover .cass { transform: translateY(-4px) rotate(-1deg); }
+	.cass .lab { background: #f8f3e6; border-radius: 2px; height: 52%; overflow: hidden; color: #2a3b6e; padding: 7% 8% 0; font: italic 19px/1.1 'Instrument Serif'; border-top: 5px solid var(--c); background-image: repeating-linear-gradient(transparent 0 17px, #d6dbe6 17px 18px); }
+	.cass .win { position: absolute; left: 30%; right: 30%; bottom: 12%; height: 21%; border-radius: 4px; background: #0b0a0a; display: flex; justify-content: space-around; align-items: center; }
+	.cass .win i { width: 24%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(#cfc8bd 20%, #4a3426 22% 62%, #241911 64%); }
+	.tape h4 { margin: 16px 0 2px; font: 22px/1.2 'Instrument Serif'; font-weight: 400; }
+	.tape .mono { color: var(--muted); font-size: 11px; }
+	.tape.todo .cass { opacity: 0.45; filter: grayscale(0.8); }
+
+	/* occasions */
+	.occ { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+	.occ a { position: relative; display: flex; flex-direction: column; justify-content: end; height: 150px; border-radius: 4px; overflow: hidden; color: #fff; padding: 16px 18px; }
+	.occ img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: sepia(0.2) saturate(0.8); transition: transform 0.6s; }
+	.occ a:hover img { transform: scale(1.05); }
+	.occ a::before { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(transparent 25%, color-mix(in srgb, var(--c) 80%, black) 100%); }
+	.occ b { position: relative; z-index: 2; font: 400 26px/1 'Instrument Serif'; }
+	.occ span { position: relative; z-index: 2; font: 11px 'IBM Plex Mono'; letter-spacing: 0.1em; opacity: 0.85; margin-top: 4px; }
+
+	/* year page preview */
+	.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+	.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+	.chip { padding: 6px 16px; border-radius: 99px; border: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+	.chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+	/* the dedication: the heart of the gift */
+	.dedication { margin: 120px auto 0; max-width: 680px; text-align: center; }
+	.dedication .mono { color: var(--gold); }
+	.dedication blockquote { margin: 18px 0 14px; font: italic 38px/1.25 'Instrument Serif'; }
+	.dedication cite { font-style: normal; color: var(--muted); }
+
+	footer { margin-top: 120px; padding: 28px 0 44px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+
+	.switch { background: #111; color: #ccc; font-size: 13px; text-align: center; padding: 7px; }
+	.switch a { color: #e6c27a; text-decoration: underline; }
+
+	@media (max-width: 800px) {
+		.wrap { padding: 0 18px; }
+		.hero { grid-template-columns: 1fr; gap: 32px; padding: 28px 0 40px; }
+		nav { display: none; }
+		.logo { font-size: 22px; }
+		.btn.add span { display: none; } .btn.add { padding: 0 16px; }
+		.sec { flex-wrap: wrap; margin-top: 64px; } .sec h2 { font-size: 36px; }
+		.year { grid-template-columns: 1fr; gap: 14px; } .year .head { display: flex; align-items: baseline; gap: 14px; } .year h3 { font-size: 44px; } .year .meta { margin: 0; line-height: 1.4; }
+		.strip { grid-template-columns: repeat(3, 1fr); gap: 6px; } .strip .thumb:nth-child(n + 6):not(.more) { display: none; }
+		.tapes { grid-template-columns: repeat(2, 1fr); gap: 18px; }
+		.occ { grid-template-columns: repeat(2, 1fr); gap: 10px; } .occ a { height: 120px; }
+		.grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stamp { font-size: 10px; }
+		.vf .t { font-size: 12px; } .dedication blockquote { font-size: 30px; }
+		footer { flex-direction: column; gap: 6px; }
+	}
+</style>
+</head>
+<body>
+<div class="switch">Mock-up 1, round 2 — “Home video”, more elegant and 90s · sample photos · <a href="modern.html">the other mock-up</a></div>
+<header>
+	<div class="wrap bar">
+		<a class="logo" href="#"><span class="rec"></span>The Smith Family</a>
+		<nav><a class="on" href="#">Timeline</a><a href="#tapes">Tapes</a><a href="#occasions">Occasions</a><a href="#">Mystery box</a></nav>
+		<div class="spacer"></div>
+		<button class="icon-btn" data-theme-icon onclick="toggleTheme()" title="Light / dark"></button>
+		<a class="btn add" href="#">＋<span> Add memories</span></a>
+	</div>
+</header>
+
+<main class="wrap">
+	<section class="hero">
+		<a class="vf" href="#">
+			<img src="" id="hero-img" alt="" />
+			<span class="t tl">PLAY ▶</span><span class="t tr">SP&nbsp;&nbsp;0:12:04</span>
+			<span class="t bl">DEC.25 1994<br />PM&nbsp;&nbsp;6:42</span>
+			<span class="now">Christmas Eve at Grandma’s — from Tape 4</span>
+		</a>
+		<div>
+			<div class="mono eyebrow">Home movies &amp; photographs · 1984 — 2004</div>
+			<h1>Do you remember<br /><em>when we were small?</em></h1>
+			<p>Every Christmas morning, birthday cake and long summer drive we managed to catch on tape — together again in one place.</p>
+			<div style="display: flex; gap: 12px; flex-wrap: wrap">
+				<a class="btn" href="#">▶&nbsp; Play a memory</a>
+				<a class="btn ghost" href="#">On this day</a>
+			</div>
+			<div class="stats">
+				<div><b>1,284</b><span>photographs</span></div>
+				<div><b>18</b><span>tapes</span></div>
+				<div><b>21</b><span>Christmases</span></div>
+			</div>
+		</div>
+	</section>
+
+	<div class="sec">
+		<div><span class="mono">CH 01</span><h2>Through the years</h2></div>
+		<div class="decades"><a href="#">’80s</a><a class="on" href="#">’90s</a><a href="#">’00s</a></div>
+	</div>
+	<div id="years"></div>
+
+	<div class="sec" id="tapes">
+		<div><span class="mono">CH 02</span><h2>The tape shelf</h2></div>
+		<a href="#">2 of 18 tapes digitized →</a>
+	</div>
+	<div class="tapes" id="tapelist"></div>
+
+	<div class="sec" id="occasions"><div><span class="mono">CH 03</span><h2>The days we celebrated</h2></div></div>
+	<div class="occ" id="occ"></div>
+
+	<div class="sec">
+		<div><span class="mono">A year page</span><h2>1994</h2></div>
+		<span class="mono muted">42 photos · 3 scenes on tape</span>
+	</div>
+	<div class="chips"><span class="chip on">All</span><span class="chip">Christmas</span><span class="chip">Birthdays</span><span class="chip">Summer</span><span class="chip">On tape</span></div>
+	<div class="grid" id="grid"></div>
+
+	<section class="dedication">
+		<div class="mono">For the family · Christmas 2025</div>
+		<blockquote>“For Mom, who kept every tape and wrote on every label — so we could press play again.”</blockquote>
+		<cite>— with love</cite>
+	</section>
+
+	<footer><span>The Smith Family · private to the family</span><span class="mono">Be kind, rewind</span></footer>
+</main>
+
+<script>
+	const $ = (id) => document.getElementById(id);
+	$('hero-img').src = photo(7, 960, 720);
+	$('years').innerHTML = YEARS.map((y) => `
+		<div class="year">
+			<div class="head"><h3>${y.year}</h3>
+				<div class="meta">${y.count} photos${y.videos ? ` · ${y.videos} videos` : ''}${y.scenes ? `<br><span class="ontape">${y.scenes} scenes on tape</span>` : ''}</div></div>
+			<div class="strip">
+				${y.items.slice(0, 5).map((it) => `<a class="thumb" href="#"><img src="${photo(it.seed)}" alt="">${it.video ? '<span class="v">▶ 0:42</span>' : ''}<span class="stamp">${it.stamp}</span></a>`).join('')}
+				<a class="thumb more" href="#">${y.count - 5} more</a>
+			</div>
+		</div>`).join('');
+	$('tapelist').innerHTML = TAPES.map((t) => `
+		<a class="tape ${t.done ? '' : 'todo'}" href="#" style="--c:${t.color}">
+			<div class="cass"><div class="lab">${t.name}</div><div class="win"><i></i><i></i></div></div>
+			<h4>${t.name}</h4>
+			<div class="mono">${t.years}${t.done ? ` · ${t.len}` : ' · not digitized yet'}</div>
+		</a>`).join('');
+	// a quieter 90s palette for the occasions
+	const OCC = [['Christmas', '#7a1f2b', 214], ['Birthdays', '#8a4a6b', 162], ['Summers away', '#2f5d62', 131], ['Easter', '#5f7a4a', 48], ['Halloween', '#8f4f1f', 37], ['Weddings', '#7d6a4a', 29], ["New Year's", '#9a7a2c', 21], ['Everyday', '#47566b', 302]];
+	$('occ').innerHTML = OCC.map(([n, c, k], i) => `<a href="#" style="--c:${c}"><img src="${photo(500 + i, 400, 300)}" alt=""><b>${n}</b><span>${k} MEMORIES</span></a>`).join('');
+	$('grid').innerHTML = Array.from({ length: 12 }, (_, i) => `<a class="thumb" href="#"><img src="${photo(1994 * 3 + i)}" alt="">${i === 2 ? '<span class="v">▶ 1:12</span>' : ''}<span class="stamp">'94 ${['12 25', ' 7  4', ' 3 14', ' 8  2', '12 24', '10 31'][i % 6]}</span></a>`).join('');
+</script>
+</body>
+</html>

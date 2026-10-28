@@ -1,0 +1,13 @@
+services:
+  familyweb:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      # Database + all photos/videos. Point the left side at your NAS share.
+      - /mnt/nas/familyweb:/data
+    env_file: .env
+    environment:
+      # Uploads arrive in 32 MB pieces; adapter-node's default limit is 512 KB.
+      BODY_SIZE_LIMIT: 64M

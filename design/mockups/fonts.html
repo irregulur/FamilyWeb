@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Font choices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+	href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Source+Sans+3:wght@400;500;600&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:wght@400;500;600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Work+Sans:wght@400;500;600&family=Alegreya:ital,wght@0,400;0,500;1,400&family=Alegreya+Sans:wght@400;500&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Nunito+Sans:wght@400;600&display=swap"
+	rel="stylesheet"
+/>
+<style>
+	:root {
+		--bg: #f5f1ea; --surface: #fffdf8; --surface-2: #ece6db; --ink: #1f1b17; --muted: #71695f; --line: #e2dacd;
+		--accent: #7a1f2b; --gold: #9a7030; --pine: #2f5d62; --osd: #ff9f1c;
+	}
+	* { box-sizing: border-box; margin: 0; }
+	body { background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+	.intro { max-width: 1100px; margin: 0 auto; padding: 48px 28px 8px; font-size: 15px; color: var(--muted); }
+	.intro b { color: var(--ink); }
+	.option { max-width: 1100px; margin: 28px auto; padding: 0 28px; }
+	.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 18px 40px -24px rgb(40 25 10 / .35); }
+	.tag { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--surface-2); font: 500 13px/1.4 system-ui, sans-serif; }
+	.tag span { color: var(--muted); }
+	.tag b { font-size: 15px; }
+	header { display: flex; align-items: center; gap: 28px; padding: 18px 28px; border-bottom: 1px solid var(--line); }
+	.logo { font-family: var(--head); font-size: 25px; display: flex; align-items: center; gap: 9px; font-weight: var(--logo-w, 400); }
+	.logo::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #d23a2a; }
+	nav { display: flex; gap: 20px; font: 15px var(--body); color: var(--muted); }
+	nav a:first-child { color: var(--ink); }
+	.btn { margin-left: auto; background: var(--accent); color: #fffdf8; border-radius: 999px; padding: 10px 18px; font: 500 14px var(--body); }
+	.hero { display: grid; grid-template-columns: 1fr 1.05fr; gap: 48px; padding: 40px 28px 34px; align-items: center; }
+	.tv { aspect-ratio: 4/3; border-radius: 6px; position: relative; overflow: hidden; background: #000; }
+	.tv img { width: 100%; height: 100%; object-fit: cover; filter: sepia(.2) saturate(.85); }
+	.tv span { position: absolute; font: 500 14px 'Courier New', monospace; color: #fff; text-shadow: 0 0 4px #000; letter-spacing: .06em; }
+	.eyebrow { font: 500 12px var(--small); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+	h1 { font-family: var(--head); font-weight: var(--head-w, 400); font-size: var(--h1, 64px); line-height: 1; letter-spacing: var(--track, -0.01em); margin: 14px 0 16px; }
+	h1 em { color: var(--muted); font-style: var(--em, italic); }
+	p.lead { font: 18px/1.55 var(--body); color: var(--muted); max-width: 30em; }
+	.stats { display: flex; gap: 36px; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); font-family: var(--body); }
+	.stats b { display: block; font: var(--head-w, 400) 32px/1.1 var(--head); }
+	.stats span { color: var(--muted); font-size: 14px; }
+	.row { display: grid; grid-template-columns: 170px 1fr; gap: 26px; padding: 22px 28px 30px; border-top: 1px solid var(--line); }
+	.year { font: var(--head-w, 400) 52px/.9 var(--head); }
+	.row p { font: 14px/1.6 var(--body); color: var(--muted); margin-top: 8px; }
+	.strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+	.strip div { aspect-ratio: 4/3; border-radius: 3px; overflow: hidden; position: relative; }
+	.strip img { width: 100%; height: 100%; object-fit: cover; filter: sepia(.15); }
+	.strip span { position: absolute; right: 6px; bottom: 3px; font: 500 11px 'Courier New', monospace; color: var(--osd); text-shadow: 1px 1px 0 #0008; }
+	.scene { display: flex; gap: 18px; padding: 14px 28px; border-top: 1px solid var(--line); align-items: baseline; }
+	.scene i { font: normal 12px 'Courier New', monospace; color: var(--muted); width: 50px; }
+	.scene b { font: var(--scene-style, italic) var(--head-w, 400) 21px var(--head); }
+	.scene small { font: 13px var(--body); color: var(--muted); margin-left: auto; }
+	@media (max-width: 760px) { .hero, .row { grid-template-columns: 1fr; } nav { display: none; } }
+</style>
+</head>
+<body>
+<p class="intro"><b>Six font pairings on the real design.</b> Same colours and layout each time, only the letters change. Pick the one that feels like <i>your family</i>, or mix (e.g. "C's headings with A's text").</p>
+<div id="options"></div>
+
+<script>
+	const OPTIONS = [
+		{ key: 'A', name: 'Garamond', about: 'Classic book serif — like a printed photo album or an old novel', head: "'EB Garamond', serif", body: "'Source Sans 3', sans-serif", small: "'Source Sans 3', sans-serif", h1: '68px', track: '-0.005em', headW: 500 },
+		{ key: 'B', name: 'Caslon', about: 'Old newspaper / family Bible serif, sturdier than Garamond', head: "'Libre Caslon Text', serif", body: "'Libre Franklin', sans-serif", small: "'Libre Franklin', sans-serif", h1: '56px', track: '-0.01em' },
+		{ key: 'C', name: 'Typewriter', about: 'Headings typed on Mom\'s typewriter, plain text for reading', head: "'Courier Prime', monospace", body: "'Work Sans', sans-serif", small: "'Courier Prime', monospace", h1: '52px', track: '-0.02em', headW: 700, em: 'italic', scene: 'normal' },
+		{ key: 'D', name: '90s computer', about: 'Georgia + Verdana: the fonts every website used in the late 90s (already on every device)', head: 'Georgia, serif', body: 'Verdana, Geneva, sans-serif', small: 'Verdana, sans-serif', h1: '56px', track: '-0.02em' },
+		{ key: 'E', name: 'Alegreya', about: 'Warm, a bit hand-made, like a storybook', head: "'Alegreya', serif", body: "'Alegreya Sans', sans-serif", small: "'Alegreya Sans', sans-serif", h1: '64px', track: '0', headW: 500 },
+		{ key: 'F', name: 'Plain', about: 'No special font at all — whatever the phone/computer uses. Lets the photos do the talking', head: 'system-ui, sans-serif', body: 'system-ui, sans-serif', small: 'system-ui, sans-serif', h1: '54px', track: '-0.03em', headW: 600, em: 'normal', scene: 'normal' }
+	];
+	const pic = (id, w = 400, h = 300) => `https://picsum.photos/id/${id}/${w}/${h}`;
+	document.getElementById('options').innerHTML = OPTIONS.map((o) => `
+	<section class="option" style="--head:${o.head};--body:${o.body};--small:${o.small};--h1:${o.h1};--track:${o.track};--head-w:${o.headW ?? 400};--em:${o.em ?? 'italic'};--scene-style:${o.scene ?? 'italic'}">
+		<div class="card">
+			<div class="tag"><b>${o.key} · ${o.name}</b><span>${o.about}</span></div>
+			<header>
+				<div class="logo">The Bryant Family</div>
+				<nav><a>Timeline</a><a>Tapes</a><a>Occasions</a><a>Family</a></nav>
+				<a class="btn">＋ Add memories</a>
+			</header>
+			<div class="hero">
+				<div class="tv"><img src="${pic(1015, 800, 600)}" alt="" /><span style="top:16px;left:20px">PLAY ▶</span><span style="bottom:16px;left:20px;color:var(--osd)">DEC.25 1994</span></div>
+				<div>
+					<p class="eyebrow">Home movies &amp; photographs · 1984 — 2004</p>
+					<h1>Do you remember<br /><em>when we were small?</em></h1>
+					<p class="lead">Every Christmas morning, birthday cake and long summer drive we managed to catch on tape — together again in one place.</p>
+					<div class="stats"><div><b>1,284</b><span>photographs</span></div><div><b>18</b><span>tapes</span></div><div><b>21</b><span>Christmases</span></div></div>
+				</div>
+			</div>
+			<div class="row">
+				<div><div class="year">1994</div><p>42 photos · 3 videos<br />5 scenes on tape</p></div>
+				<div class="strip">${[1062, 1074, 1025, 1084, 1080].map((id, i) => `<div><img src="${pic(id)}" alt="" /><span>'94 ${[3, 6, 7, 10, 12][i]} ${[14, 2, 21, 31, 25][i]}</span></div>`).join('')}</div>
+			</div>
+			<div class="scene"><i>0:12:04</i><b>Xmas '94 at Nana's</b><small>25 Dec 1994 · Christmas</small></div>
+		</div>
+	</section>`).join('');
+</script>
+</body>
+</html>
