@@ -1,14 +1,27 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Cassette from '#lib/components/Cassette.svelte';
-	import { count, dots, formatDuration, formatTakenAt, osdDate } from '#lib/format.ts';
+	import { count, dots, formatDuration, formatTakenAt, osdDate, workText } from '#lib/format.ts';
 	import { occasionBySlug } from '#lib/occasions.ts';
-	import { formatTime } from '#lib/tapes.ts';
+	import { formatTime, sceneHref } from '#lib/tapes.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	const tape = $derived(data.tape);
 	const ready = $derived(tape.status === 'ready');
+
+	// While the server is (re)making the recording, show how far it is, and the new one once it's done.
+	let work = $derived(data.work);
+	$effect(() => {
+		if (!work || !tape.media_id) return;
+		const timer = setInterval(async () => {
+			const [row] = await fetch(`/api/status?ids=${tape.media_id}`).then((r) => r.json()).catch(() => [undefined]);
+			if (row?.work) work = row.work;
+			else if (row) invalidateAll();
+		}, 4000);
+		return () => clearInterval(timer);
+	});
 
 	let video = $state<HTMLVideoElement>();
 	let now = $state(0);
@@ -58,6 +71,7 @@
 		<p class="mono mt-3 text-muted">
 			{dots(years, ready ? formatDuration(tape.duration) : '', count(data.chapters.length, 'scene'))}
 		</p>
+		{#if ready && work}<p class="mt-2 text-sm text-accent">Being worked on: {workText(work)}. You can keep watching meanwhile.</p>{/if}
 	</div>
 	<a href="/tapes/{tape.id}/edit" class="btn-ghost">✎ Edit tape & labels</a>
 </header>
@@ -71,8 +85,8 @@
 				bind:this={video}
 				bind:currentTime={now}
 				{onloadedmetadata}
-				src="/files/{tape.media_id}/video.mp4"
-				poster="/files/{tape.media_id}/large.webp"
+				src="/files/{tape.media_id}/video.mp4?v={tape.version ?? 0}"
+				poster="/files/{tape.media_id}/large.webp?v={tape.version ?? 0}"
 				controls
 				preload="metadata"
 				class="aspect-[4/3] w-full bg-black"
@@ -89,6 +103,7 @@
 				<p class="max-w-sm text-sm">
 					{#if tape.status === 'processing'}
 						The recording is being made web-sized. A two-hour tape takes a while — check back later.
+						{#if work}<span class="mt-2 block font-mono text-xs">{workText(work)}</span>{/if}
 					{:else}
 						Once the tape is recorded, upload it on <a href="/upload" class="underline">Add memories</a>, then pick it under
 						<a href="/tapes/{tape.id}/edit" class="underline">Edit tape</a>.
@@ -109,9 +124,9 @@
 				{#each data.chapters as c (c.id)}
 					{@const occasion = occasionBySlug(c.occasion)}
 					{@const canPlay = ready && c.start != null}
-					<li class="border-b border-line last:border-0">
+					<li class="flex items-center border-b border-line last:border-0">
 						<button
-							class="group flex w-full items-center gap-4 px-5 py-3 text-left transition {playing === c.id ? 'bg-surface-2' : canPlay ? 'hover:bg-surface-2' : 'cursor-default'}"
+							class="group flex min-w-0 flex-1 items-center gap-4 px-5 py-3 text-left transition {playing === c.id ? 'bg-surface-2' : canPlay ? 'hover:bg-surface-2' : 'cursor-default'}"
 							disabled={!canPlay}
 							onclick={() => play(c.start)}
 						>
@@ -127,6 +142,9 @@
 								{/if}
 							</span>
 						</button>
+						{#if canPlay}
+							<a href={sceneHref(c)} class="flex shrink-0 items-center self-stretch px-4 text-muted hover:bg-surface-2 hover:text-ink" title="Just this scene, on its own page" aria-label="Open “{c.title}” on its own">⤢</a>
+						{/if}
 					</li>
 				{/each}
 			</ol>

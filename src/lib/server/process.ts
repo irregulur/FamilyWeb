@@ -2,7 +2,8 @@
 import { spawn } from 'node:child_process';
 import { readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { db, MEDIA_DIR } from './db.ts';
+import type { Work } from '#lib/format.ts';
+import { db, MEDIA_DIR, TAPES_DIR } from './db.ts';
 
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
 const FFPROBE = process.env.FFPROBE ?? 'ffprobe';
@@ -18,13 +19,22 @@ const BLUE_SECONDS = 3;
 const LARGE_FILTER = "scale='min(2048,iw)':'min(2048,ih)':force_original_aspect_ratio=decrease";
 export const THUMB_FILTER = "scale='if(gt(iw,ih),-2,min(480,iw))':'if(gt(iw,ih),min(480,ih),-2)'"; // short side 480
 
-function runRaw(cmd: string, args: string[]) {
+/** What's being converted right now, by media id. Shown on the tape, upload and storage pages. */
+export const working = new Map<number, Work>();
+
+/** `onTime` gets how far ffmpeg is, in seconds; pass '-progress', 'pipe:2' in `args` for it. */
+function runRaw(cmd: string, args: string[], onTime?: (seconds: number) => void) {
 	return new Promise<Buffer>((resolve, reject) => {
 		const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
 		const out: Buffer[] = [];
 		let err = '';
 		p.stdout.on('data', (d: Buffer) => out.push(d));
-		p.stderr.on('data', (d) => (err = (err + d).slice(-2000)));
+		p.stderr.on('data', (d) => {
+			const s = String(d);
+			const t = [...s.matchAll(/out_time_us=(\d+)/g)].pop();
+			if (t && onTime) onTime(Number(t[1]) / 1e6);
+			err = (err + s.replace(/^\w+=.*$\n?/gm, '')).slice(-2000); // keep only real messages
+		});
 		p.on('error', reject);
 		p.on('close', (code) => (code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(`${cmd} exited ${code}: ${err}`))));
 	});
@@ -34,13 +44,13 @@ const run = async (cmd: string, args: string[]) => (await runRaw(cmd, args)).toS
 async function probe(path: string) {
 	const out = await run(FFPROBE, [
 		'-v', 'error', '-read_intervals', '%+#1',
-		'-show_entries', 'format=duration:format_tags=creation_time:frame_tags:stream=height',
+		'-show_entries', 'format=duration:format_tags=creation_time:frame_tags:stream=width,height,sample_aspect_ratio',
 		'-of', 'json', path
 	]);
 	return JSON.parse(out) as {
 		format?: { duration?: string; tags?: { creation_time?: string } };
 		frames?: { tags?: Record<string, string> }[];
-		streams?: { height?: number }[];
+		streams?: { width?: number; height?: number; sample_aspect_ratio?: string }[];
 	};
 }
 
@@ -65,12 +75,12 @@ export async function dateFromFile(path: string) {
  * every quarter second.
  * Returns null if there's nothing worth cutting.
  */
-export async function pictureRange(path: string, duration: number) {
+export async function pictureRange(path: string, duration: number, onTime?: (seconds: number) => void) {
 	const [W, H, PER_SECOND] = [8, 6, 4];
 	const raw = await runRaw(FFMPEG, [
-		'-v', 'error', '-i', path, '-an', '-sn', '-dn',
+		'-v', 'error', '-progress', 'pipe:2', '-i', path, '-an', '-sn', '-dn',
 		'-vf', `fps=${PER_SECOND},scale=${W}:${H}:flags=area,format=rgb24`, '-f', 'rawvideo', '-'
-	]);
+	], onTime);
 	const size = W * H * 3;
 	const samples = Math.floor(raw.length / size);
 	const empty = (i: number) => {
@@ -96,12 +106,39 @@ export async function pictureRange(path: string, duration: number) {
 	return start >= 1 || duration - end >= 1 ? { start, end } : null;
 }
 
+/** Videos at least this long (tapes, not phone clips) get their scene changes found. */
+const LONG_VIDEO = 600;
+
+/**
+ * Where the picture changes completely: the camera was stopped and started again. Seconds into `path`,
+ * starting with where the picture starts. Looks at a small copy of every frame.
+ */
+export async function findCuts(path: string, onTime?: (seconds: number) => void) {
+	const out = await runRaw(FFMPEG, [
+		'-v', 'error', '-progress', 'pipe:2', '-i', path, '-an', '-sn', '-dn',
+		'-vf', "scale=160:-2,select='gt(scene,0.35)',metadata=print:file=-", '-f', 'null', '-'
+	], onTime);
+	const cuts = [0];
+	for (const [, time] of out.toString().matchAll(/pts_time:([\d.]+)/g)) {
+		const t = Math.round(Number(time) * 10) / 10;
+		// A few changes close together (a moment of black or blue, a quick pan): keep where the new picture settles
+		if (t - cuts[cuts.length - 1] < 4) cuts[cuts.length - 1] = t;
+		else cuts.push(t);
+	}
+	return cuts.slice(0, 1000);
+}
+
+const percent = (seconds: number, of: number | null) => (of ? Math.min(99, Math.floor((seconds / of) * 100)) : null);
+
 /** Runs ffmpeg quietly; rejects with its last error lines. */
 export const ffmpeg = (...args: string[]) => run(FFMPEG, ['-y', '-v', 'error', ...args]);
 
-async function processOne(id: number) {
+/** `again`: making the web copy anew; the old one stays up (and stays up if this fails). */
+async function processOne(id: number, again = false) {
 	try {
-		const row = db.prepare('SELECT kind FROM media WHERE id = ?').get(id) as { kind: string } | undefined;
+		const row = db.prepare('SELECT kind, duration, trim_start FROM media WHERE id = ?').get(id) as
+			| { kind: string; duration: number | null; trim_start: number | null }
+			| undefined;
 		if (!row) return; // deleted while waiting
 		const dir = join(MEDIA_DIR, String(id));
 		const original = join(dir, readdirSync(dir).find((f) => f.startsWith('original.'))!);
@@ -109,43 +146,113 @@ async function processOne(id: number) {
 		let still = original;
 		let seek: string[] = []; // -ss on a still image makes ffmpeg output nothing
 		let duration: number | null = null;
+		let trimStart: number | null = null;
 		let sd = false;
+		let cuts: number[] | null = null;
 		if (row.kind === 'video') {
 			const info = await probe(original);
 			duration = Number(info.format?.duration) || null;
-			sd = (info.streams?.find((s) => s.height)?.height ?? 1080) <= 576;
+			const v = info.streams?.find((s) => s.height);
+			sd = (v?.height ?? 1080) <= 576;
+			// OBS saves a tape as 720×576 (or 720×480) with square pixels, which squeezes it. A tape is 4:3.
+			const squeezed = v?.width === 720 && (v.height === 576 || v.height === 480) && ['1:1', '0:1', 'N/A', undefined].includes(v.sample_aspect_ratio);
+			const filter = [squeezed && `setsar=${4 * v.height!}/${3 * 720}`, VIDEO_FILTER, sd && TAPE_DENOISE].filter(Boolean).join(',');
+			const steps = duration && duration >= LONG_VIDEO ? 3 : 2;
+			const step = (n: number, what: string, p: number | null = 0) => working.set(id, { step: `Step ${n} of ${steps}: ${what}`, percent: p });
+
 			// Cut the blue "no signal" screen off the ends of a captured tape
-			const range = duration ? await pictureRange(original, duration) : null;
+			const full = duration;
+			step(1, 'finding where the picture starts');
+			const range = duration ? await pictureRange(original, duration, (s) => step(1, 'finding where the picture starts', percent(s, full))) : null;
 			const trim = range ? ['-ss', String(range.start), '-to', String(range.end)] : [];
 			if (range) duration = range.end - range.start;
+			trimStart = range?.start ?? 0;
 
 			const tmp = join(dir, 'video.tmp.mp4');
-			await ffmpeg(
-				...trim, '-i', original, '-vf', sd ? `${VIDEO_FILTER},${TAPE_DENOISE}` : VIDEO_FILTER,
+			const cut = duration;
+			step(2, 'making the web video');
+			await runRaw(FFMPEG, [
+				'-y', '-v', 'error', '-progress', 'pipe:2', ...trim, '-i', original, '-vf', filter,
 				'-c:v', 'libx264', '-crf', '23', '-preset', 'medium', '-pix_fmt', 'yuv420p',
 				'-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-movflags', '+faststart', tmp
-			);
+			], (s) => step(2, 'making the web video', percent(s, cut)));
 			renameSync(tmp, join(dir, 'video.mp4'));
 			still = join(dir, 'video.mp4');
+			if (steps === 3) {
+				step(3, 'finding where scenes start');
+				cuts = await findCuts(still, (s) => step(3, 'finding where scenes start', percent(s, cut))).catch((e) => {
+					console.error(`Finding scenes in media ${id} failed:`, e); // the video is fine without them
+					return null;
+				});
+			}
 			seek = ['-ss', String(duration ? Math.min(duration * 0.1, 30 + BLUE_SECONDS) : 0)]; // skip the blue/black start
+
+			const tapes = db.prepare('SELECT id FROM tapes WHERE media_id = ?').all(id) as { id: number }[];
+			for (const t of tapes) rmSync(join(TAPES_DIR, String(t.id), 'frames'), { recursive: true, force: true }); // stills of the old copy
+			// Cut differently at the start than last time? Move the scene times along, so they still line up.
+			// Made before we kept track: if nothing was cut then, it started at 0; otherwise we can't tell.
+			const before = row.trim_start ?? (row.duration && full && Math.abs(row.duration - full) < 1 ? 0 : null);
+			if (before != null && before !== trimStart)
+				db.prepare(
+					'UPDATE chapters SET start = max(0, start + ?1), ends = max(0, ends + ?1) WHERE start IS NOT NULL AND tape_id IN (SELECT id FROM tapes WHERE media_id = ?2)'
+				).run(before - trimStart, id);
 		}
 
 		await ffmpeg(...seek, '-i', still, '-frames:v', '1', '-vf', LARGE_FILTER, '-c:v', 'libwebp', '-quality', '82', join(dir, 'large.webp'));
 		await ffmpeg('-i', join(dir, 'large.webp'), '-vf', THUMB_FILTER, '-c:v', 'libwebp', '-quality', '78', join(dir, 'thumb.webp'));
-		db.prepare("UPDATE media SET status = 'ready', duration = ? WHERE id = ?").run(duration, id);
+		db.prepare("UPDATE media SET status = 'ready', duration = ?, trim_start = ?, processed_at = ?, cuts = ? WHERE id = ?").run(
+			duration,
+			trimStart,
+			Date.now(),
+			cuts && JSON.stringify(cuts),
+			id
+		);
 		// A raw tape capture (tape-sized but over 1 GB, usually ~15 GB) isn't needed once the web copy exists:
 		// let it go to save space on the NAS. Download then gives the web copy instead.
 		if (sd && statSync(original).size > 1e9) rmSync(original, { force: true });
 	} catch (e) {
 		console.error(`Processing media ${id} failed:`, e);
-		db.prepare("UPDATE media SET status = 'failed' WHERE id = ?").run(id);
+		if (!again) db.prepare("UPDATE media SET status = 'failed' WHERE id = ?").run(id);
+	} finally {
+		working.delete(id);
 	}
 }
 
 // One file at a time, so a 2-hour tape doesn't starve the server.
 let queue = Promise.resolve();
-export function enqueue(id: number) {
-	queue = queue.then(() => processOne(id));
+export function enqueue(id: number, again = false) {
+	working.set(id, { step: 'Waiting for its turn', percent: null });
+	queue = queue.then(() => processOne(id, again));
+}
+
+/** Makes the web copy of a video again from its original, e.g. after the original was fixed by hand. */
+export function reprocess(id: number) {
+	const dir = join(MEDIA_DIR, String(id));
+	const row = db.prepare("SELECT 1 FROM media WHERE id = ? AND kind = 'video' AND status != 'processing'").get(id);
+	if (!row || working.has(id) || !readdirSync(dir).some((f) => f.startsWith('original.'))) return false;
+	enqueue(id, true);
+	return true;
+}
+
+/** Finds where scenes start in a video that was made before the site did that by itself. */
+export function findScenes(id: number) {
+	const row = db.prepare("SELECT duration FROM media WHERE id = ? AND kind = 'video' AND status = 'ready'").get(id) as { duration: number | null } | undefined;
+	if (!row || working.has(id)) return false;
+	working.set(id, { step: 'Waiting for its turn', percent: null });
+	queue = queue.then(async () => {
+		try {
+			working.set(id, { step: 'Finding where scenes start', percent: 0 });
+			const cuts = await findCuts(join(MEDIA_DIR, String(id), 'video.mp4'), (s) =>
+				working.set(id, { step: 'Finding where scenes start', percent: percent(s, row.duration) })
+			);
+			db.prepare('UPDATE media SET cuts = ? WHERE id = ?').run(JSON.stringify(cuts), id);
+		} catch (e) {
+			console.error(`Finding scenes in media ${id} failed:`, e);
+		} finally {
+			working.delete(id);
+		}
+	});
+	return true;
 }
 
 /** After a restart, pick up anything that was still being processed. */

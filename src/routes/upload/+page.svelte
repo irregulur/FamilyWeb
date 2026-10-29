@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { ACCEPT, kindOf } from '#lib/filetypes.ts';
 	import { OCCASIONS, guessOccasion } from '#lib/occasions.ts';
-	import { count } from '#lib/format.ts';
+	import { count, workText, type Work } from '#lib/format.ts';
 	import { takenAtFrom } from '#lib/dates.ts';
 	import DateFields from '#lib/components/DateFields.svelte';
+	import People from '#lib/components/People.svelte';
 
 	type Item = {
 		key: number;
@@ -15,6 +16,7 @@
 		state: 'waiting' | 'uploading' | 'processing' | 'ready' | 'failed';
 		error?: string;
 		id?: number;
+		work?: Work | null; // what the server is doing with it
 	};
 
 	const CHUNK = 32 * 1024 * 1024; // stays well under Cloudflare's 100 MB request limit
@@ -25,6 +27,7 @@
 	let day = $state('');
 	let occasion = $state('');
 	let title = $state('');
+	let people = $state<{ id: number; name: string }[]>([]);
 	let useFileDate = $state(false);
 	let dragging = $state(false);
 	let busy = $state(false);
@@ -118,7 +121,7 @@
 			const res = await fetch(base, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ name: file.name, size: file.size, taken_at: takenAt, occasion, title, useFileDate })
+				body: JSON.stringify({ name: file.name, size: file.size, taken_at: takenAt, occasion, title, useFileDate, people: people.map((p) => p.id) })
 			});
 			if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? 'Upload failed');
 			item.id = (await res.json()).id;
@@ -143,9 +146,10 @@
 		const pending = items.filter((i) => i.state === 'processing').map((i) => i.id);
 		if (!pending.length) return;
 		const timer = setInterval(async () => {
-			const rows: { id: number; status: string }[] = await fetch(`/api/status?ids=${pending}`).then((r) => r.json()).catch(() => []);
+			const rows: { id: number; status: string; work: Work | null }[] = await fetch(`/api/status?ids=${pending}`).then((r) => r.json()).catch(() => []);
 			for (const row of rows) {
 				const item = items.find((i) => i.id === row.id);
+				if (item) item.work = row.work;
 				if (!item || row.status === 'processing') continue;
 				item.state = row.status === 'ready' ? 'ready' : 'failed';
 				if (row.status === 'failed') item.error = "Couldn't read this file — is it damaged?";
@@ -248,6 +252,7 @@
 						<p class="mt-1 text-xs {item.state === 'failed' ? 'text-red-700 dark:text-red-400' : 'text-muted'}">
 							{LABEL[item.state]}{item.state === 'uploading' ? ` ${Math.floor(item.progress * 100)}%` : ''}
 							{#if item.state === 'waiting'}· {size(item.file.size)}{/if}
+							{#if item.state === 'processing' && item.work}<span class="block">{workText(item.work)}</span>{/if}
 						</p>
 						{#if item.error}<p class="mt-1 text-xs text-red-700 dark:text-red-400">{item.error}</p>{/if}
 						{#if item.state === 'waiting' || (item.state === 'failed' && !busy)}
@@ -286,6 +291,8 @@
 			<span class="label">Title <span class="font-normal">(optional)</span></span>
 			<input class="field" bind:value={title} maxlength="200" placeholder="e.g. Sarah's 5th birthday" />
 		</label>
+
+		<People bind:people title="Who’s in these?" />
 
 		</fieldset>
 

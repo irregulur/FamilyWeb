@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { extOf } from '#lib/filetypes.ts';
-import { sceneThumb } from '#lib/tapes.ts';
+import { sceneHref, sceneThumb } from '#lib/tapes.ts';
 import { db, MEDIA_DIR, TAPES_DIR } from './db.ts';
 import type { StripItem } from './media.ts';
 import { ffmpeg, THUMB_FILTER } from './process.ts';
@@ -15,6 +15,7 @@ export type Tape = {
 	created_by: number | null;
 	status: 'processing' | 'ready' | 'failed' | null; // of the recording; null = not digitized yet
 	duration: number | null;
+	version: number | null; // when the recording's web copy was made; changes its URLs when re-made
 	first_year: number | null;
 	last_year: number | null;
 	scenes: number;
@@ -26,12 +27,13 @@ export type Chapter = {
 	position: number;
 	title: string;
 	start: number | null;
+	ends: number | null; // set by hand; otherwise the scene runs until the next one starts
 	taken_at: string | null;
 	occasion: string | null;
 };
 
 const TAPE = `
-	SELECT t.id, t.name, t.media_id, t.sticker_scan, t.sleeve_scan, t.created_by, m.status, m.duration,
+	SELECT t.id, t.name, t.media_id, t.sticker_scan, t.sleeve_scan, t.created_by, m.status, m.duration, m.processed_at AS version,
 	       (SELECT min(year) FROM chapters WHERE tape_id = t.id) AS first_year,
 	       (SELECT max(year) FROM chapters WHERE tape_id = t.id) AS last_year,
 	       (SELECT count(*) FROM chapters WHERE tape_id = t.id) AS scenes
@@ -48,31 +50,56 @@ export const chaptersFor = (tapeId: number) =>
 export const digitizedCount = () =>
 	(db.prepare("SELECT count(*) AS n FROM tapes t JOIN media m ON m.id = t.media_id AND m.status = 'ready'").get() as { n: number }).n;
 
-// Scenes you can actually watch: their tape's recording is ready.
-const WATCHABLE = `FROM chapters c JOIN tapes t ON t.id = c.tape_id JOIN media m ON m.id = t.media_id AND m.status = 'ready'`;
+/** A scene with its start found: it lasts until its end set by hand, or else the next scene's start, or the tape's end. */
+export type Clip = Chapter & { start: number; end: number };
 
-export type Scene = Chapter & { tape_name: string; media_id: number; thumb: string };
+export function clipsFor(tape: Tape): Clip[] {
+	const timed = chaptersFor(tape.id)
+		.filter((c) => c.start != null)
+		.sort((a, b) => a.start! - b.start!);
+	return timed.map((c, i) => ({ ...c, start: c.start!, end: Math.max(c.start!, c.ends ?? timed[i + 1]?.start ?? tape.duration ?? c.start!) }));
+}
+
+/** The scene playing `second` into the tape, with the ones before and after it. */
+export function clipAt(tape: Tape, second: number) {
+	const clips = clipsFor(tape);
+	const i = clips.findLastIndex((c) => c.start < second + 1);
+	return i < 0 ? null : { clip: clips[i], prev: clips[i - 1] ?? null, next: clips[i + 1] ?? null };
+}
+
+// Scenes you can actually watch (their tape's recording is ready), with where each one ends.
+const WATCHABLE = `FROM (
+	SELECT c.*, t.name AS tape_name, t.media_id, m.processed_at AS version,
+	       CASE WHEN c.start IS NOT NULL
+	            THEN coalesce(c.ends, lead(c.start) OVER (PARTITION BY c.tape_id ORDER BY c.start IS NULL, c.start), m.duration) END AS end_at
+	FROM chapters c JOIN tapes t ON t.id = c.tape_id JOIN media m ON m.id = t.media_id AND m.status = 'ready'
+) c`;
+
+export type Scene = Chapter & { tape_name: string; media_id: number; version: number | null; end_at: number | null; thumb: string; href: string };
+
+export const scenesWhere = (where: string, ...args: (string | number)[]) =>
+	(db.prepare(`SELECT * ${WATCHABLE} WHERE ${where} ORDER BY taken_at, tape_id, position`).all(...args) as Omit<Scene, 'thumb' | 'href'>[]).map(
+		(r) => ({ ...r, thumb: sceneThumb(r), href: sceneHref(r) })
+	);
 
 /** Scenes on tape from one year, for the year page. */
-export function scenesForYear(year: number) {
-	const rows = db
-		.prepare(`SELECT c.*, t.name AS tape_name, t.media_id ${WATCHABLE} WHERE c.year = ? ORDER BY c.taken_at, c.tape_id, c.position`)
-		.all(year) as Omit<Scene, 'thumb'>[];
-	return rows.map((r) => ({ ...r, thumb: sceneThumb(r) }));
-}
+export const scenesForYear = (year: number) => scenesWhere('year = ?', year);
+
+/** Scenes on tape from one occasion (every Christmas), for the occasion page. */
+export const scenesForOccasion = (slug: string) => scenesWhere('occasion = ?', slug);
 
 /** Per year: how many scenes are on tape, and a couple of them as pictures for the timeline. */
 export function sceneYears() {
 	const rows = db
-		.prepare(`SELECT c.year, c.tape_id, c.start, c.taken_at, t.media_id ${WATCHABLE} WHERE c.year IS NOT NULL ORDER BY random()`)
-		.all() as { year: number; tape_id: number; start: number | null; taken_at: string | null; media_id: number }[];
+		.prepare(`SELECT year, tape_id, start, taken_at, media_id, version ${WATCHABLE} WHERE year IS NOT NULL ORDER BY random()`)
+		.all() as { year: number; tape_id: number; start: number | null; taken_at: string | null; media_id: number; version: number | null }[];
 	const years = new Map<number, { scenes: number; items: StripItem[] }>();
 	for (const r of rows) {
 		const y = years.get(r.year) ?? { scenes: 0, items: [] };
 		y.scenes++;
 		if (y.items.length < 3)
 			y.items.push({
-				href: `/tapes/${r.tape_id}${r.start != null ? `?t=${Math.floor(r.start)}` : ''}`,
+				href: sceneHref(r),
 				src: sceneThumb(r),
 				taken_at: r.taken_at,
 				duration: null,
@@ -87,12 +114,12 @@ export function sceneYears() {
 export function recordingChoices(tapeId: number) {
 	return db
 		.prepare(
-			`SELECT id, original_name, duration, status, created_at FROM media
+			`SELECT id, original_name, duration, status, created_at, processed_at FROM media
 			 WHERE kind = 'video' AND status != 'failed'
 			   AND id NOT IN (SELECT media_id FROM tapes WHERE media_id IS NOT NULL AND id != ?)
 			 ORDER BY duration IS NULL, duration DESC, id DESC`
 		)
-		.all(tapeId) as { id: number; original_name: string; duration: number | null; status: string; created_at: string }[];
+		.all(tapeId) as { id: number; original_name: string; duration: number | null; status: string; created_at: string; processed_at: number | null }[];
 }
 
 export const tapeDir = (id: number) => join(TAPES_DIR, String(id));

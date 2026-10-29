@@ -3,6 +3,7 @@
 	import { occasionBySlug } from '#lib/occasions.ts';
 	import { formatTakenAt, stamp } from '#lib/format.ts';
 	import EditDetails from '#lib/components/EditDetails.svelte';
+	import People from '#lib/components/People.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -51,6 +52,9 @@
 			</p>
 			<h1 class="mt-2 text-4xl leading-tight md:text-5xl">{item.title ?? (item.kind === 'video' ? 'A home video' : 'A photograph')}</h1>
 			{#if item.description}<p class="mt-3 max-w-2xl text-lg text-muted">{item.description}</p>{/if}
+			<div class="mt-5">
+				{#key item.id}<People people={data.people} media={[item.id]} />{/key}
+			</div>
 		</div>
 		<div class="flex flex-col gap-1 text-sm text-muted md:items-end md:text-right">
 			{#if item.uploader}<span>Added by {item.uploader}</span>{/if}

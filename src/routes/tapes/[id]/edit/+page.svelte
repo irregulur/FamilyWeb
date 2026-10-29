@@ -1,18 +1,20 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Cassette from '#lib/components/Cassette.svelte';
 	import DateFields from '#lib/components/DateFields.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration, workText } from '#lib/format.ts';
 	import { OCCASIONS } from '#lib/occasions.ts';
-	import { formatTime, guessFromLine, parseTime } from '#lib/tapes.ts';
+	import { formatTime, guessFromLine, parseTime, sceneThumb } from '#lib/tapes.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	type Row = { key: number; title: string; year: string; month: string; day: string; occasion: string; time: string };
+	type Row = { key: number; id: number | null; title: string; year: string; month: string; day: string; occasion: string; time: string; end: string };
 	let nextKey = 0;
-	const blank = (): Row => ({ key: nextKey++, title: '', year: '', month: '', day: '', occasion: '', time: '' });
+	const blank = (): Row => ({ key: nextKey++, id: null, title: '', year: '', month: '', day: '', occasion: '', time: '', end: '' });
 
 	// Starting values for the form, taken once (saving reloads the page).
 	const initial = (() => ({ ...data }))();
@@ -22,7 +24,17 @@
 		initial.chapters.length
 			? initial.chapters.map((c) => {
 					const [year = '', month = '', day = ''] = c.taken_at?.split('-') ?? [];
-					return { key: nextKey++, title: c.title, year, month, day, occasion: c.occasion ?? '', time: c.start != null ? formatTime(c.start) : '' };
+					return {
+						key: nextKey++,
+						id: c.id,
+						title: c.title,
+						year,
+						month,
+						day,
+						occasion: c.occasion ?? '',
+						time: c.start != null ? formatTime(c.start) : '',
+						end: c.ends != null ? formatTime(c.ends) : ''
+					};
 				})
 			: [blank()]
 	);
@@ -39,9 +51,14 @@
 	const video = $derived(data.recordings.find((r) => String(r.id) === recording));
 	let player = $state<HTMLVideoElement>();
 
-	const badTime = (r: Row) => !!r.time.trim() && parseTime(r.time) == null;
+	const bad = (time: string) => !!time.trim() && parseTime(time) == null;
+	// Ends set by hand have to come after the start
+	const backwards = (r: Row) => parseTime(r.end) != null && (parseTime(r.time) == null || parseTime(r.end)! <= parseTime(r.time)!);
+	const badTime = (r: Row) => bad(r.time) || bad(r.end) || backwards(r);
 	const chaptersJson = $derived(
-		JSON.stringify(rows.map((r) => ({ title: r.title, year: r.year, month: r.month, day: r.day, occasion: r.occasion, start: parseTime(r.time) })))
+		JSON.stringify(
+			rows.map((r) => ({ id: r.id, title: r.title, year: r.year, month: r.month, day: r.day, occasion: r.occasion, start: parseTime(r.time), ends: parseTime(r.end) }))
+		)
 	);
 
 	/** "Xmas '88" fills in the year and occasion, unless they're already set. */
@@ -58,8 +75,47 @@
 		document.querySelector<HTMLInputElement>(`[data-row="${row.key}"] input`)?.focus();
 	}
 
-	function markNow(r: Row) {
-		if (player) r.time = formatTime(player.currentTime);
+	function markNow(r: Row, field: 'time' | 'end' = 'time') {
+		if (player) r[field] = formatTime(player.currentTime);
+	}
+
+	// Suggested scene starts: only for the recording the tape has now (not one just picked above)
+	const cuts = $derived(recording === String(data.tape.media_id) && video?.status === 'ready' ? data.cuts : null);
+	const used = (t: number) => rows.some((r) => Math.abs((parseTime(r.time) ?? -9) - t) < 2);
+
+	// While the server looks for them, show how far it is, and the pictures once it's done
+	let work = $derived(data.work);
+	$effect(() => {
+		if (!work || !data.tape.media_id) return;
+		const timer = setInterval(async () => {
+			const [row] = await fetch(`/api/status?ids=${data.tape.media_id}`).then((r) => r.json()).catch(() => [undefined]);
+			if (row?.work) work = row.work;
+			else if (row) invalidateAll();
+		}, 4000);
+		return () => clearInterval(timer);
+	});
+
+	/** Shows that moment in the player, paused, so ⏱ now on a line picks it. */
+	function look(t: number) {
+		if (!player) return;
+		player.pause();
+		player.currentTime = t;
+		const box = player.getBoundingClientRect();
+		if (box.top < 0 || box.bottom > innerHeight) player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}
+
+	/** A new line starting at `t`, among the others in time order. */
+	async function addAt(t: number) {
+		const only = rows.length === 1 && !rows[0].title && !rows[0].time ? rows[0] : null;
+		const row = only ?? blank();
+		row.time = formatTime(t);
+		if (!only) {
+			const after = rows.findIndex((r) => (parseTime(r.time) ?? -1) > t);
+			rows.splice(after < 0 ? rows.length : after, 0, row);
+		}
+		look(t);
+		await tick();
+		document.querySelector<HTMLInputElement>(`[data-row="${row.key}"] input`)?.focus();
 	}
 
 	function jump(r: Row) {
@@ -171,7 +227,7 @@
 				<!-- svelte-ignore a11y_media_has_caption -->
 				<video
 					bind:this={player}
-					src="/files/{video.id}/video.mp4"
+					src="/files/{video.id}/video.mp4?v={video.processed_at ?? 0}"
 					controls
 					preload="metadata"
 					class="aspect-[4/3] w-full rounded bg-black shadow-lg lg:sticky lg:top-4 lg:order-last"
@@ -181,7 +237,7 @@
 			<div>
 				<ol class="space-y-3">
 					{#each rows as r, i (r.key)}
-						<li data-row={r.key} class="space-y-2 rounded-lg border border-line bg-bg p-3">
+						<li data-row={r.key} id={r.id ? `scene-${r.id}` : undefined} class="scroll-mt-24 target:ring-2 target:ring-gold space-y-2 rounded-lg border border-line bg-bg p-3">
 							<div class="flex gap-2">
 								<input
 									class="field font-serif text-xl! leading-none italic"
@@ -206,7 +262,7 @@
 									{#each OCCASIONS as o (o.slug)}<option value={o.slug}>{o.name}</option>{/each}
 								</select>
 								<span class="flex items-center gap-2">
-									<input class="field w-22! font-mono text-sm {badTime(r) ? 'border-red-700!' : ''}" bind:value={r.time} placeholder="0:00:00" aria-label="Starts at" title="Where it starts on the tape" />
+									<input class="field w-22! font-mono text-sm {bad(r.time) ? 'border-red-700!' : ''}" bind:value={r.time} placeholder="0:00:00" aria-label="Starts at" title="Where it starts on the tape" />
 									{#if player}
 										<button type="button" class="rounded-full border border-line bg-surface px-3 py-1.5 text-sm whitespace-nowrap hover:border-ink" onclick={() => markNow(r)} title="Starts where the video is now">⏱ now</button>
 										{#if parseTime(r.time) != null}
@@ -214,7 +270,23 @@
 										{/if}
 									{/if}
 								</span>
-								{#if badTime(r)}<span class="text-sm text-red-700 dark:text-red-400">Write the time like 1:05:30</span>{/if}
+								{#if parseTime(r.time) != null || r.end}
+									<span class="flex items-center gap-2 text-sm text-muted">
+										until
+										<input
+											class="field w-26! font-mono text-sm {bad(r.end) || backwards(r) ? 'border-red-700!' : ''}"
+											bind:value={r.end}
+											placeholder="next scene"
+											aria-label="Ends at"
+											title="Where it stops. Leave empty to run until the next scene starts."
+										/>
+										{#if player}
+											<button type="button" class="rounded-full border border-line bg-surface px-3 py-1.5 text-sm whitespace-nowrap hover:border-ink" onclick={() => markNow(r, 'end')} title="Ends where the video is now">⏱ now</button>
+										{/if}
+									</span>
+								{/if}
+								{#if bad(r.time) || bad(r.end)}<span class="text-sm text-red-700 dark:text-red-400">Write the time like 1:05:30</span>
+								{:else if backwards(r)}<span class="text-sm text-red-700 dark:text-red-400">The end has to come after the start</span>{/if}
 							</div>
 						</li>
 					{/each}
@@ -222,6 +294,39 @@
 				<button type="button" class="link mt-3 text-sm" onclick={() => addRow()}>+ Add a line</button>
 			</div>
 		</div>
+		{#if video?.status === 'ready' && recording === String(data.tape.media_id)}
+			<div class="mt-8 border-t border-line pt-6">
+				<h3 class="text-2xl">Where the camera stopped and started</h3>
+				{#if work}
+					<p class="mt-1 text-sm text-accent">{workText(work)}…</p>
+				{:else if cuts}
+					<p class="mt-1 max-w-2xl text-sm text-muted">
+						{cuts.length} places where the picture changes completely — usually where a new scene starts. Click a picture to see it in the
+						player, then press <b>⏱ now</b> on the line it belongs to, or <b>+ New</b> to start a new line there.
+					</p>
+					<ol class="mt-4 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
+						{#each cuts as t (t)}
+							<li class={used(t) ? 'opacity-50' : ''}>
+								<button type="button" class="tile block aspect-[4/3] w-full" onclick={() => look(t)} title="Show in the player">
+									<img src={sceneThumb({ tape_id: data.tape.id, start: t, media_id: data.tape.media_id, version: data.tape.version })} alt="" loading="lazy" />
+								</button>
+								<div class="mt-1 flex items-center justify-between font-mono text-xs text-muted">
+									{formatTime(t)}
+									{#if used(t)}<span title="A line starts here">✓</span>{:else}<button type="button" class="hover:text-ink" onclick={() => addAt(t)}>+ New</button>{/if}
+								</div>
+							</li>
+						{/each}
+					</ol>
+				{:else}
+					<p class="mt-1 max-w-2xl text-sm text-muted">
+						The site can look through the recording for the places where the picture changes completely, and show them here as pictures to
+						pick scene starts from. A two-hour tape takes several minutes.
+					</p>
+					<button form="find-scenes" class="btn-ghost mt-3">Find the scenes</button>
+					{#if form && 'sceneMessage' in form}<p class="mt-2 text-sm text-red-700 dark:text-red-400">{form.sceneMessage}</p>{/if}
+				{/if}
+			</div>
+		{/if}
 		<input type="hidden" name="chapters" value={chaptersJson} />
 	</section>
 
@@ -232,6 +337,8 @@
 		<a href="/tapes/{data.tape.id}" class="text-sm text-muted hover:text-ink">Cancel</a>
 	</div>
 </form>
+
+<form id="find-scenes" method="POST" action="?/findScenes" use:enhance class="hidden"></form>
 
 {#if data.canDelete}
 	<form

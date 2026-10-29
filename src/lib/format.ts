@@ -36,3 +36,7 @@ export function osdDate(taken: string | null) {
 	if (!m) return y;
 	return `${MONTHS[Number(m) - 1].toUpperCase()}${d ? `.${Number(d)}` : ''} ${y}`;
 }
+
+/** What the server is doing with an upload right now. */
+export type Work = { step: string; percent: number | null };
+export const workText = (w: Work) => `${w.step}${w.percent != null ? ` — ${w.percent}%` : ''}`;

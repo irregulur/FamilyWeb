@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { cleanTakenAt } from '#lib/dates.ts';
 import { extOf, kindOf } from '#lib/filetypes.ts';
 import { guessOccasion, occasionBySlug } from '#lib/occasions.ts';
+import { personById, tag } from '#lib/server/people.ts';
 import { db, MEDIA_DIR, UPLOAD_DIR } from '#lib/server/db.ts';
 import { dateFromFile, enqueue } from '#lib/server/process.ts';
 import type { RequestHandler } from './$types';
@@ -55,6 +56,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			.prepare('INSERT INTO media (kind, original_name, title, taken_at, occasion, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)')
 			.run(kind, name, title, takenAt, occasion, user.id).lastInsertRowid
 	);
+	// Who's in them, picked for the whole batch
+	for (const person of [body.people ?? []].flat().map(Number).filter(Number.isInteger).slice(0, 100))
+		if (personById(person)) tag('media', id, person, user.id);
 	const dir = join(MEDIA_DIR, String(id));
 	mkdirSync(dir, { recursive: true });
 	renameSync(path, join(dir, `original.${extOf(name)}`));

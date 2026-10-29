@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { cleanTakenAt, takenAtFrom } from '#lib/dates.ts';
 import { occasionBySlug } from '#lib/occasions.ts';
 import { db } from '#lib/server/db.ts';
+import { findScenes, working } from '#lib/server/process.ts';
 import { chaptersFor, deleteTape, recordingChoices, removeScan, saveScan, tapeById, tapeDir } from '#lib/server/tapes.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -14,11 +15,19 @@ export const load: PageServerLoad = ({ params, locals }) => {
 		tape,
 		chapters: chaptersFor(tape.id),
 		recordings: recordingChoices(tape.id),
+		// Where the camera stopped and started in the recording: offered as places a scene might start
+		cuts: cutsOf(tape.media_id)?.filter((t) => !tape.duration || t < tape.duration - 5), // not the blue screen at the very end
+		work: (tape.media_id && working.get(tape.media_id)) || null,
 		canDelete: !!locals.user?.is_admin || locals.user?.id === tape.created_by
 	};
 };
 
-type Line = { title?: unknown; year?: unknown; month?: unknown; day?: unknown; occasion?: unknown; start?: unknown };
+function cutsOf(mediaId: number | null) {
+	const row = mediaId ? (db.prepare('SELECT cuts FROM media WHERE id = ?').get(mediaId) as { cuts: string | null } | undefined) : undefined;
+	return row?.cuts ? (JSON.parse(row.cuts) as number[]) : null;
+}
+
+type Line = { id?: unknown; ends?: unknown; title?: unknown; year?: unknown; month?: unknown; day?: unknown; occasion?: unknown; start?: unknown };
 const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
 export const actions: Actions = {
@@ -38,15 +47,20 @@ export const actions: Actions = {
 		} catch {
 			return fail(400, { message: 'Something went wrong with the scene list. Try again?' });
 		}
+		const time = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
 		const chapters = lines
 			.slice(0, 300)
 			.map((l) => ({
+				id: typeof l.id === 'number' ? l.id : null,
 				title: text(l.title).slice(0, 200),
 				taken_at: cleanTakenAt(takenAtFrom(text(l.year), text(l.month), text(l.day))),
 				occasion: occasionBySlug(text(l.occasion))?.slug ?? null,
-				start: typeof l.start === 'number' && Number.isFinite(l.start) && l.start >= 0 ? l.start : null
+				start: time(l.start),
+				ends: time(l.ends)
 			}))
 			.filter((c) => c.title);
+		if (chapters.some((c) => c.ends != null && (c.start == null || c.ends <= c.start)))
+			return fail(400, { message: 'A scene ends before it starts — check the times marked in red.' });
 
 		// The recording: a video from the archive that no other tape uses
 		const recording = Number(form.get('recording')) || null;
@@ -70,9 +84,17 @@ export const actions: Actions = {
 		db.exec('BEGIN');
 		try {
 			db.prepare('UPDATE tapes SET name = ?, media_id = ? WHERE id = ?').run(name, recording, tape.id);
-			db.prepare('DELETE FROM chapters WHERE tape_id = ?').run(tape.id);
-			const insert = db.prepare('INSERT INTO chapters (tape_id, position, title, start, taken_at, occasion) VALUES (?, ?, ?, ?, ?, ?)');
-			chapters.forEach((c, i) => insert.run(tape.id, i, c.title, c.start, c.taken_at, c.occasion));
+			// Scenes keep their id when changed, so the people tagged in them stay
+			const existing = new Set(chaptersFor(tape.id).map((c) => c.id));
+			const kept = chapters.filter((c) => c.id != null && existing.has(c.id)).map((c) => c.id!);
+			db.prepare(`DELETE FROM chapters WHERE tape_id = ? AND id NOT IN (${kept.map(() => '?').join(',')})`).run(tape.id, ...kept);
+			const update = db.prepare('UPDATE chapters SET position = ?, title = ?, start = ?, ends = ?, taken_at = ?, occasion = ? WHERE id = ?');
+			const insert = db.prepare('INSERT INTO chapters (tape_id, position, title, start, ends, taken_at, occasion) VALUES (?, ?, ?, ?, ?, ?, ?)');
+			chapters.forEach((c, i) =>
+				c.id != null && existing.has(c.id)
+					? update.run(i, c.title, c.start, c.ends, c.taken_at, c.occasion, c.id)
+					: insert.run(tape.id, i, c.title, c.start, c.ends, c.taken_at, c.occasion)
+			);
 			db.exec('COMMIT');
 		} catch (e) {
 			db.exec('ROLLBACK');
@@ -82,6 +104,13 @@ export const actions: Actions = {
 		if (recording !== tape.media_id) rmSync(join(tapeDir(tape.id), 'frames'), { recursive: true, force: true });
 
 		redirect(303, `/tapes/${tape.id}`);
+	},
+
+	/** For recordings made before the site looked for scenes by itself. */
+	findScenes: ({ params }) => {
+		const tape = tapeById(Number(params.id));
+		if (!tape?.media_id || !findScenes(tape.media_id)) return fail(400, { sceneMessage: 'The recording is busy right now — try again in a while.' });
+		return { finding: true };
 	},
 
 	delete: ({ params, locals }) => {

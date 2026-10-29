@@ -5,6 +5,7 @@ import { cleanTakenAt, takenAtFrom } from '#lib/dates.ts';
 import { occasionBySlug } from '#lib/occasions.ts';
 import { db, MEDIA_DIR } from '#lib/server/db.ts';
 import { mediaById, mediaForYear, neighbours, nextUndated, undatedMedia } from '#lib/server/media.ts';
+import { peopleIn } from '#lib/server/people.ts';
 import type { User } from '#lib/server/auth.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -13,7 +14,7 @@ const canDelete = (user: User | null, uploadedBy: number | null) => !!user && (!
 export const load: PageServerLoad = ({ params, locals }) => {
 	const item = mediaById(Number(params.id));
 	if (!item || item.status !== 'ready') error(404);
-	return { item, ...neighbours(item), canDelete: canDelete(locals.user, item.uploaded_by) };
+	return { item, ...neighbours(item), people: peopleIn('media', item.id), canDelete: canDelete(locals.user, item.uploaded_by) };
 };
 
 export const actions: Actions = {

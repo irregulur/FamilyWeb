@@ -16,8 +16,14 @@ export function formatTime(seconds: number) {
 }
 
 /** A picture for a scene: the frame where it starts, or the tape's cover if nobody has found the start yet. */
-export const sceneThumb = (c: { tape_id: number; start: number | null; media_id: number | null }) =>
-	c.start != null ? `/tapes/${c.tape_id}/frame/${Math.floor(c.start)}?r=${c.media_id}` : `/files/${c.media_id}/thumb.webp`;
+export const sceneThumb = (c: { tape_id: number; start: number | null; media_id: number | null; version?: number | null }) =>
+	c.start != null
+		? `/tapes/${c.tape_id}/frame/${Math.floor(c.start)}?r=${c.media_id}-${c.version ?? 0}`
+		: `/files/${c.media_id}/thumb.webp?v=${c.version ?? 0}`;
+
+/** A scene plays on its own page, from where it starts to where the next one starts. Until its start is found, the whole tape. */
+export const sceneHref = (c: { tape_id: number; start: number | null }) =>
+	c.start != null ? `/tapes/${c.tape_id}/scene/${Math.floor(c.start)}` : `/tapes/${c.tape_id}`;
 
 const OCCASION_WORDS: [RegExp, string][] = [
 	[/x-?mas|christmas|santa/i, 'christmas'],

@@ -10,9 +10,9 @@ export type MediaItem = {
 	duration: number | null;
 };
 
-const COLS = 'id, kind, title, taken_at, occasion, duration';
+export const COLS = 'id, kind, title, taken_at, occasion, duration';
 // Ready, and not a whole tape's recording (those show up as scenes on the tape page instead)
-const READY = "status = 'ready' AND id NOT IN (SELECT media_id FROM tapes WHERE media_id IS NOT NULL)";
+export const READY = "status = 'ready' AND id NOT IN (SELECT media_id FROM tapes WHERE media_id IS NOT NULL)";
 
 /** A picture on the timeline: a photo, a video or a scene on tape. */
 export type StripItem = { href: string; src: string; taken_at: string | null; duration: number | null; scene: boolean };
@@ -184,7 +184,7 @@ export function randomMemory() {
 			`SELECT href FROM (
 				SELECT '/m/' || id AS href FROM media WHERE ${READY} AND kind = 'video'
 				UNION ALL
-				SELECT '/tapes/' || c.tape_id || '?t=' || CAST(c.start AS INTEGER) || '&play' FROM chapters c
+				SELECT '/tapes/' || c.tape_id || '/scene/' || CAST(c.start AS INTEGER) || '?play' FROM chapters c
 				  JOIN tapes t ON t.id = c.tape_id JOIN media m ON m.id = t.media_id AND m.status = 'ready' WHERE c.start IS NOT NULL
 			) ORDER BY random() LIMIT 1`
 		)

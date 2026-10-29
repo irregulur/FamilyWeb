@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { count, dots, formatTakenAt, stamp } from '#lib/format.ts';
+	import { count, dots } from '#lib/format.ts';
 	import MediaGrid from '#lib/components/MediaGrid.svelte';
+	import SceneGrid from '#lib/components/SceneGrid.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -26,19 +27,7 @@
 	<section class="border-t border-line py-8">
 		<p class="eyebrow mb-1.5">On tape</p>
 		<h2 class="mb-6 text-3xl">Home movies from {data.year}</h2>
-		<div class="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-5">
-			{#each data.scenes as s (s.id)}
-				<a href="/tapes/{s.tape_id}{s.start != null ? `?t=${Math.floor(s.start)}` : ''}" class="group block">
-					<div class="tile scanlines aspect-[4/3]">
-						<img src={s.thumb} alt="" loading="lazy" />
-						<span class="osd top-2 left-2.5 z-[1]">PLAY ▶</span>
-						<span class="stamp always z-[1]">{stamp(s.taken_at)}</span>
-					</div>
-					<p class="mt-2 truncate font-serif text-lg leading-tight italic">{s.title}</p>
-					<p class="truncate text-xs text-muted">{dots(s.tape_name, s.taken_at && s.taken_at.length > 4 ? formatTakenAt(s.taken_at) : '')}</p>
-				</a>
-			{/each}
-		</div>
+		<SceneGrid scenes={data.scenes} />
 	</section>
 {/if}
 

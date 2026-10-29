@@ -15,6 +15,10 @@ A private, family-only website for our old photos and home videos. Runs in its o
 - **Sample photos**: on the Family page, the owner can add ~80 sample photos and videos plus three sample tapes (real photos from picsum.photos, aged to look like old prints) to try the site out, and remove them all with one click. Samples are marked in the database, so removing them never touches real uploads.
 - **Tape shelf** (`/tapes`): every tape drawn as an 8mm cassette, with its label, years and length — including tapes that aren't digitized yet, so you can see how far along you are. A tape's page plays the recording next to a list of what's on it (one line per thing written on the label, with dates and occasions); tap a line to jump there. Scans of the cassette sticker and the box are shown as they were written, and the sticker scan becomes the cassette's label on the shelf. The edit page has the video beside the list so you can play the tape and press **⏱ now** where each scene starts. Typing “Xmas '88 at Nana's” fills in the year and occasion by itself. Dated scenes show up on the timeline and on their year's page under **On tape**, with a picture taken from the tape.
 - **Uploads** (`/upload`): drag and drop or pick from a phone. Set the date (just a year is fine) and occasion once for the batch. Files go up in 32 MB pieces, so big videos work through Cloudflare Tunnel and a dropped connection continues where it stopped. ffmpeg then makes the thumbnail, the large photo and a web MP4 (deinterlaced, square pixels, max 1080p), one file at a time. **Digitized tapes**: upload the raw OBS capture as-is — the capture card's blue "no signal" screen (or black) at the start and end is cut down to 3 seconds (for that putting-the-tape-in feel), and tape-sized (SD) videos get a light noise clean-up, which is what makes a 15 GB capture come out around 1–2 GB. Once the web copy is ready, the raw capture is deleted (any SD video over 1 GB) to save space on the NAS; Download then gives the web copy.
+- **Scene suggestions**: when a video longer than 10 minutes is processed, a third step looks for places where the picture changes completely (usually where the camera was stopped and started). On **Edit tape** they show as a grid of pictures under the scene list: click one to jump there, then **⏱ now** or **+ New**. Older tapes get a **Find the scenes** button. It finds camera cuts, not events, so there are more pictures than scenes.
+- **Scenes as clips** (`/tapes/<id>/scene/<sec>`): every scene with a start time has its own page that plays just that scene, stops at its end and offers **Next** or **↺ Again**, plus **⬇ Save this scene as a video**, **Watch the whole tape from here** and **← Before / After →**. Scenes show on the year and occasion pages, the timeline and "Play a memory". A scene runs until the next one starts, unless an **until** time is set on the edit page (to skip blue screen or a mistake).
+- **People** (`/people`): anyone can tag who's in a photo, video or scene (**Who's in this?**), or tag a whole upload batch at once. Each person has a page with their scenes and photos in date order. The owner can rename, merge ("Nana" = "Grandma Rose") or remove a person; removing only takes the tags off.
+- **Storage** (`/family/storage`, owner): what's using the disk, and a **Re-make** button per video to make the web copy again from the original (when the original is still there). Processing shows its step and percentage on the tape, upload and storage pages. If a re-made tape is trimmed differently, its scene times move with it. Re-made videos get new addresses so browsers don't keep the old one.
 - Dates can be fuzzy: `1987`, `1987-12` or `1987-12-25`, because old photos rarely have an exact date.
 
 ## Project tree
@@ -36,13 +40,14 @@ FamilyWeb/
     │   ├── dates.ts             fuzzy dates: checking and building them
     │   ├── filetypes.ts         which photo/video formats are accepted
     │   ├── tapes.ts             tape times, reading “Xmas '88” from a label line, label colours
-    │   ├── components/          Cassette (the drawn tape), MediaGrid, EditDetails, DateFields, ThemeToggle, AuthCard, SignupFields
+    │   ├── components/          Cassette (the drawn tape), MediaGrid, SceneGrid, People, EditDetails, DateFields, ThemeToggle, AuthCard, SignupFields
     │   └── server/
     │       ├── schema.sql       the database tables
     │       ├── db.ts            SQLite (built into Node, no extra service) + migrations
     │       ├── auth.ts          passwords, sessions, invites
     │       ├── media.ts         timeline / year / occasion queries
     │       ├── tapes.ts         tapes, scenes, label scans, stills from tapes
+    │       ├── people.ts        who's in what: tags, people pages, rename/merge
     │       ├── settings.ts      the front page words (family name, headline, dedication)
     │       ├── process.ts       ffmpeg: thumbnails, web videos, camera dates, the queue
     │       └── demo.ts          sample photos/videos (add / remove)
@@ -54,12 +59,14 @@ FamilyWeb/
         ├── occasion/[slug]/     one occasion across all years
         ├── undated/             the mystery box
         ├── m/[id]/              single photo/video viewer
-        ├── tapes/               the tape shelf; [id]/ watch a tape, [id]/edit/ labels + scenes
+        ├── tapes/               the tape shelf; [id]/ watch a tape, [id]/edit/ labels + scenes, [id]/scene/[sec]/ one scene as a clip
+        ├── people/              everyone tagged; [id]/ one person's collection
+        ├── api/people/          the list of names, adding names, tagging
         ├── upload/              drag-and-drop upload page
         ├── api/upload/[token]/  receives upload chunks, then files them
         ├── api/status/          "is it ready yet?" for the upload page
         ├── files/[id]/[file]/   serves the media (logged-in only, video seeking works)
-        ├── family/              invite people, members, front page words, samples (owner only)
+        ├── family/              invite people, members, front page words, samples (owner only); storage/ disk use + Re-make
         └── setup/ login/ invite/[code]/ logout/
 ```
 
@@ -111,16 +118,33 @@ docker compose up -d --build
 1. ~~**Uploads**~~ ✓
 2. ~~**Easy Proxmox install**~~ ✓
 3. ~~**Edit details**~~ ✓
-4. **Tape import**: a script that takes the big OBS captures from a NAS folder, shrinks them (15 GB → ~1.5 GB) and splits each 2-hour tape into scenes, so they fit on the timeline as clips.
-5. Then pick from the ideas below.
+4. ~~**Tape import**~~ ✓: captures are shrunk on upload, scenes are suggested, and each scene plays as a clip.
+5. ~~**People**~~ ✓
+
+### Next up (in this order)
+
+1. **Backups of the photos and videos.** Today only the database is copied, and only before an update. If the disk dies, the digitized tapes go with it, and redoing them means finding the tapes and the VCR again. Plan: a nightly copy of `DATA_DIR/media` and `DATA_DIR/tapes` to the NAS (or rclone to cloud storage), and a "last backup" line on the Family page so it's obvious when it stops working.
+2. **Search.** One box in the menu that finds titles, descriptions, scene names and people ("beach", "Nana"). SQLite's built-in full-text search (FTS5) does it with no new dependencies.
+3. **Stories and comments.** Family write what was happening under a photo or scene. Right now only one description per item exists, and the stories are often worth more than the pictures.
+4. **On This Day.** A strip on the home page with photos and scenes from today's date in past years. No new data needed, only a query on the dates already there.
+
+### Later
+
+- **Favourites** (♥) and a "Best of" page.
+- **Albums**: hand-picked collections ("Mum's 60th slideshow") for things that aren't one year, occasion or person.
+- **TV mode**: full-screen automatic slideshow for a year, occasion or person, for the living room at a family gathering.
+- **Share link**: a private, expiring link to one scene or album for a relative without an account.
+
+### Decided against (for now)
+
+- **Face recognition**: heavy and unreliable on VHS-quality video; hand tagging is enough for one family.
+- **Map**: old tapes and scanned photos have no GPS.
 
 ## Ideas
 
 **Browsing**
 - **On This Day**: the home page shows what happened on today's date in past years.
-- **People**: tag who is in a photo, then see "everything with Grandpa" or "Mom through the years".
 - **Then & Now**: drag a slider between an old photo and the same place or pose today.
-- **Map**: pins for houses, holiday spots and the old school.
 
 **Family taking part**
 - **Comments and stories**: Grandma writes what was happening when a photo was taken. These are often worth more than the photo.
@@ -135,7 +159,7 @@ docker compose up -d --build
 
 **Tapes**
 - ~~**Chapters**~~ and ~~**Tape labels**~~: built, see Tape shelf above.
-- **Scenes on the occasion pages**: Christmas scenes from tapes next to the Christmas photos.
+- ~~**Scenes on the occasion pages**~~: built.
 
 **Games and gifts**
 - **Guess the Year**: a photo appears on the TV, everyone guesses the year on their phone, closest wins. Good for Christmas dinner.

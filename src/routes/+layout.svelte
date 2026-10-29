@@ -10,6 +10,7 @@
 	const links = $derived([
 		{ href: '/', name: 'Timeline' },
 		{ href: '/tapes', name: 'Tapes' },
+		{ href: '/people', name: 'People' },
 		{ href: '/#occasions', name: 'Occasions' },
 		...(data.user?.is_admin ? [{ href: '/family', name: 'Family' }] : [])
 	]);

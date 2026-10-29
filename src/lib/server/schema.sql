@@ -77,3 +77,27 @@ CREATE TABLE IF NOT EXISTS settings (
 	key   TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 );
+
+-- Who's in a photo, video or scene on tape. Anyone in the family can tag; each person gets their own page.
+CREATE TABLE IF NOT EXISTS people (
+	id         INTEGER PRIMARY KEY,
+	name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+	created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS media_people (
+	media_id  INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+	person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+	added_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	PRIMARY KEY (media_id, person_id)
+);
+CREATE INDEX IF NOT EXISTS media_people_person ON media_people(person_id);
+
+CREATE TABLE IF NOT EXISTS chapter_people (
+	chapter_id INTEGER NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+	person_id  INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+	added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	PRIMARY KEY (chapter_id, person_id)
+);
+CREATE INDEX IF NOT EXISTS chapter_people_person ON chapter_people(person_id);

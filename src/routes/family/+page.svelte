@@ -10,7 +10,7 @@
 <section class="pt-12 pb-10 md:pt-16">
 	<p class="eyebrow">Members & settings</p>
 	<h1 class="mt-3 text-5xl leading-[1.05] md:text-6xl">The family</h1>
-	<p class="mt-4 text-muted">Everyone who can see and add memories.</p>
+	<p class="mt-4 text-muted">Everyone who can see and add memories. <a href="/family/storage" class="link">See what's taking up space</a></p>
 </section>
 
 <section class="grid gap-6 md:grid-cols-2">
