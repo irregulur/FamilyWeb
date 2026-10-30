@@ -47,12 +47,9 @@
 					<Cassette {tape} subtitle={years(tape)} />
 				</div>
 				<p class="mt-4 font-serif text-[22px] leading-tight">{tape.name}</p>
+				{#if tapeSpan(tape)}<p class="mt-1 font-serif text-lg text-ink/80 italic">{tapeSpan(tape)}</p>{/if}
 				<p class="mono mt-1 text-[11px]! text-muted">
-					{dots(
-						tapeSpan(tape),
-						digitized ? formatDuration(tape.duration) : '',
-						count(tape.scenes, 'scene')
-					)}
+					{dots(digitized ? formatDuration(tape.duration) : '', count(tape.scenes, 'memory', 'memories'))}
 				</p>
 				{#if !digitized}
 					<p class="mono mt-0.5 text-[11px]! text-accent">{tape.status === 'processing' ? 'Getting ready…' : 'Not digitized yet'}</p>

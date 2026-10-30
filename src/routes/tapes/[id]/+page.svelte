@@ -68,8 +68,9 @@
 	<div class="min-w-0 flex-1">
 		<p class="eyebrow">Tape</p>
 		<h1 class="mt-2 text-4xl leading-[1.05] md:text-5xl">{tape.name}</h1>
-		<p class="mono mt-3 text-muted">
-			{dots(tapeSpan(tape), ready ? formatDuration(tape.duration) : '', count(data.chapters.length, 'scene'))}
+		{#if tapeSpan(tape)}<p class="mt-2 font-serif text-2xl text-ink/80 italic">{tapeSpan(tape)}</p>{/if}
+		<p class="mono mt-2 text-muted">
+			{dots(ready ? formatDuration(tape.duration) : '', count(data.chapters.length, 'memory', 'memories'))}
 		</p>
 		{#if ready && work}<p class="mt-2 text-sm text-accent">Being worked on: {workText(work)}. You can keep watching meanwhile.</p>{/if}
 	</div>
@@ -117,7 +118,7 @@
 	<section class="card p-0! overflow-hidden" aria-label="Scenes on this tape">
 		<div class="flex items-baseline justify-between border-b border-line px-5 py-4">
 			<h2 class="text-2xl">On this tape</h2>
-			<span class="mono text-[11px]! text-muted">{count(data.chapters.length, 'scene')}</span>
+			<span class="mono text-[11px]! text-muted">{count(data.chapters.length, 'memory', 'memories')}</span>
 		</div>
 		{#if data.chapters.length}
 			<ol>
