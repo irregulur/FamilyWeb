@@ -17,6 +17,7 @@ export const load: PageServerLoad = ({ params, locals }) => {
 		recordings: recordingChoices(tape.id),
 		// Where the camera stopped and started in the recording: offered as places a scene might start
 		cuts: cutsOf(tape.media_id)?.filter((t) => !tape.duration || t < tape.duration - 5), // not the blue screen at the very end
+		skipped: listOf((db.prepare('SELECT skipped FROM tapes WHERE id = ?').get(tape.id) as { skipped: string | null }).skipped),
 		work: (tape.media_id && working.get(tape.media_id)) || null,
 		canDelete: !!locals.user?.is_admin || locals.user?.id === tape.created_by
 	};
@@ -24,7 +25,17 @@ export const load: PageServerLoad = ({ params, locals }) => {
 
 function cutsOf(mediaId: number | null) {
 	const row = mediaId ? (db.prepare('SELECT cuts FROM media WHERE id = ?').get(mediaId) as { cuts: string | null } | undefined) : undefined;
-	return row?.cuts ? (JSON.parse(row.cuts) as number[]) : null;
+	return row?.cuts ? listOf(row.cuts) : null;
+}
+
+/** A JSON list of times, as sent by the page or kept in the database; anything else is dropped. */
+function listOf(json: unknown) {
+	try {
+		const list = JSON.parse(String(json ?? '[]'));
+		return Array.isArray(list) ? [...new Set(list.filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t >= 0))].sort((a, b) => a - b).slice(0, 2000) : [];
+	} catch {
+		return [];
+	}
 }
 
 type Line = { id?: unknown; ends?: unknown; title?: unknown; year?: unknown; month?: unknown; day?: unknown; occasion?: unknown; start?: unknown };
@@ -61,6 +72,10 @@ export const actions: Actions = {
 			.filter((c) => c.title);
 		if (chapters.some((c) => c.ends != null && (c.start == null || c.ends <= c.start)))
 			return fail(400, { message: 'A scene ends before it starts — check the times marked in red.' });
+		// A start with no end: it ends where the next scene starts (or the tape ends), written in so it can be changed later
+		const starts = chapters.flatMap((c) => (c.start != null ? [c.start] : [])).sort((a, b) => a - b);
+		for (const c of chapters)
+			if (c.start != null && c.ends == null) c.ends = starts.find((s) => s > c.start!) ?? tape.duration ?? null;
 
 		// The recording: a video from the archive that no other tape uses
 		const recording = Number(form.get('recording')) || null;
@@ -83,7 +98,12 @@ export const actions: Actions = {
 
 		db.exec('BEGIN');
 		try {
+			// The places a scene might start (found, and any added by hand) and the ones looked at and skipped, for this recording
+			const same = recording != null && recording === tape.media_id;
 			db.prepare('UPDATE tapes SET name = ?, media_id = ? WHERE id = ?').run(name, recording, tape.id);
+			if (!same) db.prepare('UPDATE tapes SET skipped = NULL WHERE id = ?').run(tape.id);
+			else if (form.has('skipped')) db.prepare('UPDATE tapes SET skipped = ? WHERE id = ?').run(JSON.stringify(listOf(form.get('skipped'))), tape.id);
+			if (same && form.has('cuts')) db.prepare('UPDATE media SET cuts = ? WHERE id = ?').run(JSON.stringify(listOf(form.get('cuts'))), recording);
 			// Scenes keep their id when changed, so the people tagged in them stay
 			const existing = new Set(chaptersFor(tape.id).map((c) => c.id));
 			const kept = chapters.filter((c) => c.id != null && existing.has(c.id)).map((c) => c.id!);

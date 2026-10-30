@@ -33,7 +33,14 @@ const MIGRATIONS = [
 	// Offered as places a scene might start when filling in a tape. NULL = not looked for yet.
 	`ALTER TABLE media ADD COLUMN cuts TEXT;`,
 	// Where a scene stops, when it isn't simply where the next one starts (to skip blue screen or a mistake). NULL = the next one.
-	`ALTER TABLE chapters ADD COLUMN ends REAL;`
+	`ALTER TABLE chapters ADD COLUMN ends REAL;`,
+	// Every scene now has its own end. Scenes that ran until the next one get that written in, so they play the same.
+	// And the stretches of a tape someone looked at and skipped (seconds where they start, JSON), so they aren't offered again.
+	`UPDATE chapters SET ends = coalesce(
+		(SELECT min(n.start) FROM chapters n WHERE n.tape_id = chapters.tape_id AND n.start > chapters.start),
+		(SELECT m.duration FROM tapes t JOIN media m ON m.id = t.media_id WHERE t.id = chapters.tape_id)
+	 ) WHERE start IS NOT NULL AND ends IS NULL;
+	 ALTER TABLE tapes ADD COLUMN skipped TEXT;`
 ];
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 for (let v = user_version; v < MIGRATIONS.length; v++) {

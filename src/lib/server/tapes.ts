@@ -27,7 +27,7 @@ export type Chapter = {
 	position: number;
 	title: string;
 	start: number | null;
-	ends: number | null; // set by hand; otherwise the scene runs until the next one starts
+	ends: number | null; // where it stops; NULL only for scenes whose start isn't found yet
 	taken_at: string | null;
 	occasion: string | null;
 };

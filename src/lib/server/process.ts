@@ -110,22 +110,50 @@ export async function pictureRange(path: string, duration: number, onTime?: (sec
 const LONG_VIDEO = 600;
 
 /**
- * Where the picture changes completely: the camera was stopped and started again. Seconds into `path`,
- * starting with where the picture starts. Looks at a small copy of every frame.
+ * Where the camera was stopped and started again. Seconds into `path`, starting with where the picture starts.
+ * Looks at a small copy of every frame and scores how different it is from the one before (0–1).
+ *
+ * A camera restart is a one-frame jump. On tape it's often a small one (same room, same people, a bit of noise),
+ * so the bar is low; what weeds out a pan or someone walking past the lens is that those change the picture
+ * over many frames in a row, not in one go.
  */
 export async function findCuts(path: string, onTime?: (seconds: number) => void) {
 	const out = await runRaw(FFMPEG, [
 		'-v', 'error', '-progress', 'pipe:2', '-i', path, '-an', '-sn', '-dn',
-		'-vf', "scale=160:-2,select='gt(scene,0.35)',metadata=print:file=-", '-f', 'null', '-'
+		'-vf', `scale=160:-2,select='gt(scene,${NOTICE})',metadata=print:file=-`, '-f', 'null', '-'
 	], onTime);
+	return cutsFrom([...out.toString().matchAll(/pts_time:([\d.]+)\s+lavfi\.scene_score=([\d.]+)/g)].map(([, t, s]) => [Number(t), Number(s)]));
+}
+
+const NOTICE = 0.08; // frames changing less than this aren't looked at
+const JUMP = 0.12; // a jump this big in one go is a cut…
+const BIG = 0.4; // …and one this big is, even in the middle of a lot of movement
+const BURST = 1.5; // changes going on for longer than this (seconds) are movement, not a cut
+
+/** [seconds, score] of the frames that changed noticeably → where new shots start. */
+export function cutsFrom(frames: [number, number][]) {
 	const cuts = [0];
-	for (const [, time] of out.toString().matchAll(/pts_time:([\d.]+)/g)) {
-		const t = Math.round(Number(time) * 10) / 10;
-		// A few changes close together (a moment of black or blue, a quick pan): keep where the new picture settles
-		if (t - cuts[cuts.length - 1] < 4) cuts[cuts.length - 1] = t;
+	const add = (t: number) => {
+		t = Math.round(t * 10) / 10;
+		// Two cuts close together (a moment of black, blue or noise between shots): keep where the new picture settles
+		if (t - cuts[cuts.length - 1] < 3) cuts[cuts.length - 1] = t;
 		else cuts.push(t);
+	};
+	// Changing frames close together are one burst; a short burst with a jump in it is a cut
+	let burst: { from: number; to: number; peak: number; at: number } | null = null;
+	const done = () => burst && (burst.peak >= BIG || (burst.peak >= JUMP && burst.to - burst.from <= BURST)) && add(burst.at);
+	for (const [t, score] of frames) {
+		if (burst && t - burst.to < 0.5) {
+			burst.to = t;
+			if (score >= JUMP) burst.at = t; // the last jump: where the new picture has settled
+			burst.peak = Math.max(burst.peak, score);
+		} else {
+			done();
+			burst = { from: t, to: t, peak: score, at: t };
+		}
 	}
-	return cuts.slice(0, 1000);
+	done();
+	return cuts.slice(0, 2000);
 }
 
 const percent = (seconds: number, of: number | null) => (of ? Math.min(99, Math.floor((seconds / of) * 100)) : null);
