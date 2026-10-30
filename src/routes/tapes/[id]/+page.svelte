@@ -2,7 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import Cassette from '#lib/components/Cassette.svelte';
-	import { count, dots, formatDuration, formatTakenAt, osdDate, workText } from '#lib/format.ts';
+	import { count, dots, formatDuration, formatTakenAt, osdDate, tapeSpan, workText } from '#lib/format.ts';
 	import { occasionBySlug } from '#lib/occasions.ts';
 	import { formatTime, sceneHref } from '#lib/tapes.ts';
 	import type { PageProps } from './$types';
@@ -69,7 +69,7 @@
 		<p class="eyebrow">Tape</p>
 		<h1 class="mt-2 text-4xl leading-[1.05] md:text-5xl">{tape.name}</h1>
 		<p class="mono mt-3 text-muted">
-			{dots(years, ready ? formatDuration(tape.duration) : '', count(data.chapters.length, 'scene'))}
+			{dots(tapeSpan(tape), ready ? formatDuration(tape.duration) : '', count(data.chapters.length, 'scene'))}
 		</p>
 		{#if ready && work}<p class="mt-2 text-sm text-accent">Being worked on: {workText(work)}. You can keep watching meanwhile.</p>{/if}
 	</div>

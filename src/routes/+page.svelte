@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Cassette from '#lib/components/Cassette.svelte';
 	import { OCCASIONS, occasionBySlug } from '#lib/occasions.ts';
-	import { count, dots, formatDuration, osdDate, stamp } from '#lib/format.ts';
+	import { count, dots, formatDuration, osdDate, stamp, tapeSpan } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -145,7 +145,7 @@
 				<p class="mt-4 font-serif text-[22px] leading-tight">{tape.name}</p>
 				<p class="mono mt-0.5 text-[11px]! text-muted">
 					{dots(
-						tape.first_year ? (tape.last_year !== tape.first_year ? `${tape.first_year}–${String(tape.last_year).slice(2)}` : String(tape.first_year)) : '',
+						tapeSpan(tape),
 						tape.status === 'ready' ? formatDuration(tape.duration) : tape.media_id ? 'getting ready' : 'not digitized yet'
 					)}
 				</p>

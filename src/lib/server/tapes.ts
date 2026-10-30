@@ -18,6 +18,8 @@ export type Tape = {
 	version: number | null; // when the recording's web copy was made; changes its URLs when re-made
 	first_year: number | null;
 	last_year: number | null;
+	first_taken: string | null; // 'YYYY-MM' of the earliest dated scene ('YYYY-13' when only the year is known)
+	last_taken: string | null; // 'YYYY-MM' of the latest ('YYYY-00' when only the year is known)
 	scenes: number;
 };
 
@@ -36,6 +38,9 @@ const TAPE = `
 	SELECT t.id, t.name, t.media_id, t.sticker_scan, t.sleeve_scan, t.created_by, m.status, m.duration, m.processed_at AS version,
 	       (SELECT min(year) FROM chapters WHERE tape_id = t.id) AS first_year,
 	       (SELECT max(year) FROM chapters WHERE tape_id = t.id) AS last_year,
+	       -- A scene dated only to the year shouldn't hide the months of the others that year: it sorts after them for the start, before them for the end
+	       (SELECT min(CASE WHEN length(taken_at) = 4 THEN taken_at || '-13' ELSE substr(taken_at, 1, 7) END) FROM chapters WHERE tape_id = t.id) AS first_taken,
+	       (SELECT max(CASE WHEN length(taken_at) = 4 THEN taken_at || '-00' ELSE substr(taken_at, 1, 7) END) FROM chapters WHERE tape_id = t.id) AS last_taken,
 	       (SELECT count(*) FROM chapters WHERE tape_id = t.id) AS scenes
 	FROM tapes t LEFT JOIN media m ON m.id = t.media_id`;
 

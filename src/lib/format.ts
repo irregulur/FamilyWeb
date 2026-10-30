@@ -1,5 +1,24 @@
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * The stretch of time a tape covers, from its first and last dated scene ('1991-01', '1991-04' → 'January–April 1991').
+ * Months are left out where a year has no scene dated to the month.
+ */
+export function tapeSpan(t: { first_taken: string | null; last_taken: string | null }) {
+	if (!t.first_taken || !t.last_taken) return '';
+	const [y1, m1] = t.first_taken.split('-').map(Number);
+	const [y2, m2] = t.last_taken.split('-').map(Number);
+	const month = (m: number) => m >= 1 && m <= 12; // 0 or 13: that end of the tape is only dated to the year
+	if (y1 === y2) {
+		if (!month(m1) || !month(m2)) return `${y1}`;
+		return m1 === m2 ? `${MONTH_NAMES[m1 - 1]} ${y1}` : `${MONTH_NAMES[m1 - 1]}–${MONTH_NAMES[m2 - 1]} ${y1}`;
+	}
+	if (!month(m1) && !month(m2)) return `${y1}–${y2}`;
+	return `${month(m1) ? `${MONTHS[m1 - 1]} ` : ''}${y1} – ${month(m2) ? `${MONTHS[m2 - 1]} ` : ''}${y2}`;
+}
+
 /** '1987' → '1987', '1987-12' → 'Dec 1987', '1987-12-25' → '25 Dec 1987', null → 'Date unknown' */
 export function formatTakenAt(taken: string | null) {
 	if (!taken) return 'Date unknown';

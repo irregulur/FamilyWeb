@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Cassette from '#lib/components/Cassette.svelte';
-	import { count, dots, formatDuration } from '#lib/format.ts';
+	import { count, dots, formatDuration, tapeSpan } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -49,7 +49,7 @@
 				<p class="mt-4 font-serif text-[22px] leading-tight">{tape.name}</p>
 				<p class="mono mt-1 text-[11px]! text-muted">
 					{dots(
-						years(tape),
+						tapeSpan(tape),
 						digitized ? formatDuration(tape.duration) : '',
 						count(tape.scenes, 'scene')
 					)}
